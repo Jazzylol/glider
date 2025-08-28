@@ -24,6 +24,16 @@ var (
 func main() {
 	// global rule proxy
 	pxy := rule.NewProxy(config.Forwards, &config.Strategy, config.rules)
+	
+	// setup API manager for API strategy mode
+	if config.ServerPort != "" {
+		// 设置全局API管理器
+		rule.SetAPIManager(GetAPIManager())
+		
+		// 启动API服务器
+		StartAPIServer(config.ServerPort)
+		log.F("[main] API server enabled on port %s", config.ServerPort)
+	}
 
 	// ipset manager
 	ipsetM, _ := ipset.NewManager(config.rules)
@@ -86,8 +96,27 @@ func main() {
 		}
 		go service.Run()
 	}
+	
+	// setup proxy list for API manager if API server is enabled
+	if config.ServerPort != "" {
+		setupAPIProxyList(pxy)
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
+}
+
+// setupAPIProxyList 设置API管理器的代理列表
+func setupAPIProxyList(pxy *rule.Proxy) {
+	// 获取主转发器组的代理列表
+	if mainGroup := pxy.GetMainGroup(); mainGroup != nil {
+		proxies := mainGroup.GetForwarders()
+		if len(proxies) > 0 {
+			GetAPIManager().SetProxyList(proxies)
+			log.F("[main] API manager initialized with %d proxies", len(proxies))
+		} else {
+			log.F("[main] Warning: No proxies available for API manager")
+		}
+	}
 }

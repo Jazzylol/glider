@@ -36,6 +36,9 @@ type Config struct {
 	rules []*rule.Config
 
 	Services []string
+	
+	// API server configuration
+	ServerPort string
 }
 
 func parseConfig() *Config {
@@ -56,7 +59,8 @@ func parseConfig() *Config {
 	flag.StringVar(&conf.Strategy.Strategy, "strategy", "rr", `rr: Round Robin mode
 ha: High Availability mode
 lha: Latency based High Availability mode
-dh: Destination Hashing mode`)
+dh: Destination Hashing mode
+api: API controlled mode (requires -serverPort)`)
 	flag.StringVar(&conf.Strategy.Check, "check", "http://www.msftconnecttest.com/connecttest.txt#expect=200",
 		`check=tcp[://HOST:PORT]: tcp port connect check
 check=http://HOST[:PORT][/URI][#expect=REGEX_MATCH_IN_RESP_LINE]
@@ -90,6 +94,9 @@ check=disable: disable health check`)
 
 	// service configs
 	flag.StringSliceUniqVar(&conf.Services, "service", nil, "run specified services, format: SERVICE_NAME[,SERVICE_CONFIG]")
+	
+	// API server configs
+	flag.StringVar(&conf.ServerPort, "serverPort", "", "API server port for remote management (e.g., 8080)")
 
 	flag.Usage = usage
 	if err := flag.Parse(); err != nil {

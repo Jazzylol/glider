@@ -16,6 +16,19 @@ import (
 	"github.com/nadoo/glider/proxy"
 )
 
+// APIProxyManager 接口定义API代理管理器
+type APIProxyManager interface {
+	GetCurrentProxy() *Forwarder
+}
+
+// 全局API管理器接口
+var globalAPIManager APIProxyManager
+
+// SetAPIManager 设置全局API管理器
+func SetAPIManager(manager APIProxyManager) {
+	globalAPIManager = manager
+}
+
 // forwarder slice orderd by priority.
 type priSlice []*Forwarder
 
@@ -88,6 +101,9 @@ func newFwdrGroup(name string, fwdrs []*Forwarder, c *Strategy) *FwdrGroup {
 		case "dh":
 			p.next = p.scheduleDH
 			log.F("[strategy] %s: %d forwarders forward in destination hashing mode.", name, count)
+		case "api":
+			p.next = p.scheduleAPI
+			log.F("[strategy] %s: %d forwarders forward in API controlled mode.", name, count)
 		default:
 			p.next = p.scheduleRR
 			log.F("[strategy] %s: not supported forward mode '%s', use round robin mode for %d forwarders.", name, c.Strategy, count)
@@ -315,4 +331,33 @@ func (p *FwdrGroup) scheduleDH(dstAddr string) *Forwarder {
 	fnv1a := fnv.New32a()
 	fnv1a.Write([]byte(dstAddr))
 	return p.avail[fnv1a.Sum32()%uint32(len(p.avail))]
+}
+
+// API Controlled Mode.
+func (p *FwdrGroup) scheduleAPI(dstAddr string) *Forwarder {
+	// 调用全局API管理器获取当前代理
+	if globalAPIManager != nil {
+		if currentProxy := globalAPIManager.GetCurrentProxy(); currentProxy != nil {
+			// 检查当前代理是否在可用列表中
+			for _, proxy := range p.avail {
+				if proxy.Addr() == currentProxy.Addr() {
+					return proxy
+				}
+			}
+		}
+	}
+	
+	// 如果API管理器不可用或当前代理不在可用列表中，fallback到轮询模式
+	return p.scheduleRR(dstAddr)
+}
+
+// GetForwarders 获取转发器列表
+func (p *FwdrGroup) GetForwarders() []*Forwarder {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	
+	// 返回所有转发器的副本
+	result := make([]*Forwarder, len(p.fwdrs))
+	copy(result, p.fwdrs)
+	return result
 }

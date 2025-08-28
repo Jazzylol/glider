@@ -154,3 +154,8 @@ func (p *Proxy) Check() {
 		fwdrGroup.Check()
 	}
 }
+
+// GetMainGroup 获取主转发器组
+func (p *Proxy) GetMainGroup() *FwdrGroup {
+	return p.main
+}
