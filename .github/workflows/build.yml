@@ -2,15 +2,15 @@ name: Build
 on:
   push:
     branches:
-      - "dev"
+      - "main"
     tags:
       - "*"
   pull_request:
 
 env:
   APP_NAME: glider
-  DOCKERHUB_REPO: nadoo/glider
-  GHCR_REPO: ghcr.io/nadoo/glider
+  DOCKERHUB_REPO: jazzylol/glider
+  GHCR_REPO: ghcr.io/jazzylol/glider
   PLATFORMS: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/riscv64
 
 jobs:
