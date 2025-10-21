@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path"
@@ -19,10 +18,10 @@ var flag = conflag.New()
 
 // ListenerGroup represents a listener with its dedicated forwarders.
 type ListenerGroup struct {
-	Name     string         // Group name (e.g., "listener-1")
-	Listen   string         // Listen address
-	Forwards []string       // Dedicated forwarders for this listener
-	Strategy rule.Strategy  // Strategy for this listener group
+	Name     string        // Group name (e.g., "listener-1")
+	Listen   string        // Listen address
+	Forwards []string      // Dedicated forwarders for this listener
+	Strategy rule.Strategy // Strategy for this listener group
 }
 
 // Config is global config struct.
@@ -171,12 +170,12 @@ check=disable: disable health check`)
 	}
 
 	loadRules(conf)
-	
+
 	// Load listener groups from numbered parameters (listen1/forward1, listen2/forward2, ...)
 	if conf.UseMultiListenerMode {
 		loadListenerGroupsFromParams(conf, listenerParams, forwardParams, strategyParams, checkParams, checkIntervalParams)
 	}
-	
+
 	// Validate: at least one listener, DNS server, or service must be configured
 	// In multi-listener mode, check ListenerGroups instead of Listens
 	if conf.UseMultiListenerMode {
@@ -192,7 +191,7 @@ check=disable: disable health check`)
 			os.Exit(-1)
 		}
 	}
-	
+
 	return conf
 }
 
@@ -268,7 +267,7 @@ func loadListenerGroupsFromParams(conf *Config, listenerParams, forwardParams, s
 		}
 
 		conf.ListenerGroups = append(conf.ListenerGroups, group)
-		log.F("[config] Loaded listener group: %s, listen=%s, forwards=%d", 
+		log.F("[config] Loaded listener group: %s, listen=%s, forwards=%d",
 			group.Name, group.Listen, len(group.Forwards))
 	}
 
