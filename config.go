@@ -211,7 +211,8 @@ func loadRules(conf *Config) {
 	}
 }
 
-// loadListenerGroups parses config file for [listener-N] sections
+// loadListenerGroups parses listener group parameters from config
+// Format: listener.N.listen, listener.N.forward, etc.
 func loadListenerGroups(conf *Config) {
 	if configFile == "" {
 		log.F("[config] Multi-listener mode enabled but no config file specified, skipping listener groups")
@@ -231,10 +232,10 @@ func loadListenerGroups(conf *Config) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	var currentGroup *ListenerGroup
-	var inListenerSection bool
+	// Map to store listener groups by index
+	groupsMap := make(map[string]*ListenerGroup)
 
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -243,63 +244,66 @@ func loadListenerGroups(conf *Config) {
 			continue
 		}
 
-		// Check for [listener-N] section
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.Trim(line, "[]")
-			if strings.HasPrefix(sectionName, "listener-") {
-				// Save previous group if exists
-				if currentGroup != nil && currentGroup.Listen != "" {
-					conf.ListenerGroups = append(conf.ListenerGroups, currentGroup)
-				}
-
-				// Start new group
-				currentGroup = &ListenerGroup{
-					Name:     sectionName,
-					Forwards: []string{},
-					Strategy: conf.Strategy, // Use global strategy as default
-				}
-				inListenerSection = true
-				log.F("[config] Found listener group: %s", sectionName)
-			} else {
-				inListenerSection = false
-			}
+		// Parse key=value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
-		// Parse key=value in listener section
-		if inListenerSection && currentGroup != nil {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) != 2 {
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Check if it's a listener group parameter (format: listener.N.xxx)
+		if strings.HasPrefix(key, "listener.") {
+			keyParts := strings.Split(key, ".")
+			if len(keyParts) != 3 {
 				continue
 			}
 
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+			groupIndex := keyParts[1] // e.g., "1", "2"
+			paramName := keyParts[2]  // e.g., "listen", "forward"
 
-			switch key {
+			// Get or create group
+			group, exists := groupsMap[groupIndex]
+			if !exists {
+				group = &ListenerGroup{
+					Name:     "listener-" + groupIndex,
+					Forwards: []string{},
+					Strategy: conf.Strategy, // Use global strategy as default
+				}
+				groupsMap[groupIndex] = group
+			}
+
+			// Parse parameter
+			switch paramName {
 			case "listen":
-				currentGroup.Listen = value
+				group.Listen = value
 			case "forward":
-				currentGroup.Forwards = append(currentGroup.Forwards, value)
+				group.Forwards = append(group.Forwards, value)
 			case "strategy":
-				currentGroup.Strategy.Strategy = value
+				group.Strategy.Strategy = value
 			case "check":
-				currentGroup.Strategy.Check = value
+				group.Strategy.Check = value
 			case "checkinterval":
-				fmt.Sscanf(value, "%d", &currentGroup.Strategy.CheckInterval)
+				fmt.Sscanf(value, "%d", &group.Strategy.CheckInterval)
 			case "checktimeout":
-				fmt.Sscanf(value, "%d", &currentGroup.Strategy.CheckTimeout)
+				fmt.Sscanf(value, "%d", &group.Strategy.CheckTimeout)
 			}
 		}
-	}
-
-	// Save last group
-	if currentGroup != nil && currentGroup.Listen != "" {
-		conf.ListenerGroups = append(conf.ListenerGroups, currentGroup)
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.F("[config] Error reading config file: %v", err)
+		return
+	}
+
+	// Convert map to slice and sort by index
+	for _, group := range groupsMap {
+		if group.Listen != "" {
+			conf.ListenerGroups = append(conf.ListenerGroups, group)
+			log.F("[config] Loaded listener group: %s, listen=%s, forwards=%d", 
+				group.Name, group.Listen, len(group.Forwards))
+		}
 	}
 
 	log.F("[config] Loaded %d listener group(s)", len(conf.ListenerGroups))
