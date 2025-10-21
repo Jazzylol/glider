@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	flag       = conflag.New()
-	configFile string // Store config file path for listener group parsing
+	flag              = conflag.New()
+	configFile        string // Store config file path for listener group parsing
+	listenerConfigMap = make(map[string]string) // Store listener config lines before Parse()
 )
 
 // ListenerGroup represents a listener with its dedicated forwarders.
@@ -125,16 +126,15 @@ check=disable: disable health check`)
 	flag.StringVar(&conf.SXXHost, "sxxhost", "", "SXX Proxy API server address")
 	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
 	
-	// Multi-listener config file
-	var listenerConfigFile string
-	flag.StringVar(&listenerConfigFile, "listenerConfig", "", "listener groups config file (only used when useMultiListenerMode=true)")
-
 	flag.Usage = usage
 	
-	// Store config file path before parsing
+	// Store config file path and pre-process it to extract listener configs
 	for i, arg := range os.Args {
 		if arg == "-config" && i+1 < len(os.Args) {
 			configFile = os.Args[i+1]
+			// Pre-process config file to extract listener.N.* parameters
+			// This prevents conflag from validating these unknown parameters
+			preprocessConfigFile(configFile)
 			break
 		}
 	}
@@ -170,13 +170,9 @@ check=disable: disable health check`)
 
 	loadRules(conf)
 	
-	// Load listener groups from separate config file if specified
+	// Load listener groups from pre-processed config
 	if conf.UseMultiListenerMode {
-		// Use separate listener config file if specified, otherwise use main config file
-		if listenerConfigFile != "" {
-			configFile = listenerConfigFile
-		}
-		loadListenerGroups(conf)
+		loadListenerGroupsFromMap(conf)
 	}
 	
 	// Validate: at least one listener, DNS server, or service must be configured
@@ -229,29 +225,22 @@ func loadRules(conf *Config) {
 	}
 }
 
-// loadListenerGroups parses listener group parameters from config
-// Format: listener.N.listen, listener.N.forward, etc.
-func loadListenerGroups(conf *Config) {
-	if configFile == "" {
-		log.F("[config] Multi-listener mode enabled but no config file specified, skipping listener groups")
-		return
-	}
-
+// preprocessConfigFile reads config file and extracts listener.N.* parameters
+// This prevents conflag from validating these unknown parameters
+func preprocessConfigFile(confPath string) {
 	// Make path absolute if needed
-	confPath := configFile
 	if !path.IsAbs(confPath) {
-		confPath = path.Join(flag.ConfDir(), confPath)
+		if wd, err := os.Getwd(); err == nil {
+			confPath = path.Join(wd, confPath)
+		}
 	}
 
 	file, err := os.Open(confPath)
 	if err != nil {
-		log.F("[config] Failed to open config file for listener groups: %v", err)
+		// If we can't open the file, let conflag handle it
 		return
 	}
 	defer file.Close()
-
-	// Map to store listener groups by index
-	groupsMap := make(map[string]*ListenerGroup)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -271,6 +260,25 @@ func loadListenerGroups(conf *Config) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
+		// Store listener.N.* parameters
+		if strings.HasPrefix(key, "listener.") {
+			listenerConfigMap[key] = value
+		}
+	}
+}
+
+// loadListenerGroupsFromMap parses listener group parameters from pre-processed map
+func loadListenerGroupsFromMap(conf *Config) {
+	if len(listenerConfigMap) == 0 {
+		log.F("[config] Multi-listener mode enabled but no listener groups configured")
+		return
+	}
+
+	// Map to store listener groups by index
+	groupsMap := make(map[string]*ListenerGroup)
+
+	// Parse all listener.N.* parameters from the map
+	for key, value := range listenerConfigMap {
 		// Check if it's a listener group parameter (format: listener.N.xxx)
 		if strings.HasPrefix(key, "listener.") {
 			keyParts := strings.Split(key, ".")
@@ -310,12 +318,7 @@ func loadListenerGroups(conf *Config) {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		log.F("[config] Error reading config file: %v", err)
-		return
-	}
-
-	// Convert map to slice and sort by index
+	// Convert map to slice
 	for _, group := range groupsMap {
 		if group.Listen != "" {
 			conf.ListenerGroups = append(conf.ListenerGroups, group)
