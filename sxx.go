@@ -120,22 +120,22 @@ func InitSXXAPI(sxxHost, sxxKey string) error {
 // RegisterSXXAPIHandlers 注册 SXX API 路由
 func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 	// 获取代理列表
-	mux.HandleFunc("/api/sxproxy/list", authenticateSXX(handleSXXGetProxyList))
+	mux.HandleFunc("/api/sxxproxy/list", authenticateSXX(handleSXXGetProxyList))
 
 	// 创建代理
-	mux.HandleFunc("/api/sxproxy/create", authenticateSXX(handleSXXCreateProxy))
+	mux.HandleFunc("/api/sxxproxy/create", authenticateSXX(handleSXXCreateProxy))
 
 	// 删除代理
-	mux.HandleFunc("/api/sxproxy/delete", authenticateSXX(handleSXXDeleteProxy))
+	mux.HandleFunc("/api/sxxproxy/delete", authenticateSXX(handleSXXDeleteProxy))
 
 	// 刷新代理
-	mux.HandleFunc("/api/sxproxy/refresh", authenticateSXX(handleSXXRefreshProxy))
+	mux.HandleFunc("/api/sxxproxy/refresh", authenticateSXX(handleSXXRefreshProxy))
 
 	// 测试代理
-	mux.HandleFunc("/api/sxproxy/test", authenticateSXX(handleSXXTestProxy))
+	mux.HandleFunc("/api/sxxproxy/test", authenticateSXX(handleSXXTestProxy))
 
 	// 获取计划信息
-	mux.HandleFunc("/api/sxproxy/plan", authenticateSXX(handleSXXGetPlanInfo))
+	mux.HandleFunc("/api/sxxproxy/plan", authenticateSXX(handleSXXGetPlanInfo))
 
 	log.F("[sxx] SXX API handlers registered")
 }
