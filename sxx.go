@@ -33,7 +33,7 @@ type CommonProxyInfo struct {
 	StateName     string `json:"stateName"`
 	CityName      string `json:"cityName"`
 	CityCode      string `json:"cityCode"`
-	ProxyTypeID   int    `json:"proxyTypeId"`
+	ProxyTypeID   int    `json:"proxyTypeID"`
 	SpentTraffic  int64  `json:"spentTraffic"`
 	TrafficLimit  int64  `json:"trafficLimit"`
 	CreatedAt     string `json:"createdAt"`

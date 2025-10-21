@@ -37,7 +37,7 @@ type Response struct {
 	Message interface{} `json:"message"`
 }
 
-// ProxyInfo 代理信息
+// ProxyInfo 代理信息（从 SX API 接收，保持原始 API 的命名格式）
 type ProxyInfo struct {
 	ID           int    `json:"id"`
 	Name         string `json:"name"`
@@ -51,21 +51,23 @@ type ProxyInfo struct {
 	CityName     string `json:"cityName"`       // 城市名称
 	ASN          int    `json:"asn"`            // ASN
 	Status       int    `json:"status"`         // 状态
-	ProxyTypeID  int    `json:"proxy_type_id"`  // 代理类型ID
-	CreatedAt    string `json:"created_at"`     // 创建时间
-	TrafficUsed  int64  `json:"spent_traffic_month"`  // 本月已用流量
-	TrafficLimit int64  `json:"traffic_limit"`  // 流量限制
-	TemplateID   *int   `json:"template_id"`    // 模板ID
+	ProxyTypeID  int    `json:"proxy_type_id"`  // 代理类型ID（保持原始API格式）
+	CreatedAt    string `json:"created_at"`     // 创建时间（保持原始API格式）
+	TrafficUsed  int64  `json:"spent_traffic_current_month"`  // 本月已用流量（保持原始API格式）
+	TrafficLimit int64  `json:"traffic_limit"`  // 流量限制（保持原始API格式）
+	TemplateID   *int   `json:"template_id"`    // 模板ID（保持原始API格式）
 }
 
-// ProxyListMessage 代理列表响应消息
+// ProxyListMessage 代理列表响应消息（从 SX API 接收，保持原始 API 的命名格式）
 type ProxyListMessage struct {
 	Proxies      []ProxyInfo `json:"proxies"`
-	CountProxies int         `json:"count_proxies"`
-	CurrentPage  int         `json:"current_page"`
-	LastPage     int         `json:"last_page"`
-	PerPage      int         `json:"per_page"`
-	Total        int         `json:"total"`
+	CountProxies int         `json:"countProxies"`  // 这个字段API实际返回是驼峰
+	Pagination   struct {
+		Page       int `json:"page"`
+		PageCount  int `json:"pageCount"`
+		PageSize   int `json:"pageSize"`
+		TotalCount int `json:"totalCount"`
+	} `json:"pagination,omitempty"`
 }
 
 // ProxyListResponse 代理列表响应
@@ -74,12 +76,12 @@ type ProxyListResponse struct {
 	Message ProxyListMessage `json:"message"`
 }
 
-// Country 国家信息
+// Country 国家信息（从 SX API 接收，保持原始 API 的命名格式）
 type Country struct {
 	ID          int    `json:"id"`
 	Code        string `json:"code"`
 	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name"`  // 保持原始API格式
 }
 
 // CountryListMessage 国家列表响应消息
@@ -93,12 +95,12 @@ type CountryListResponse struct {
 	Message CountryListMessage `json:"message"`
 }
 
-// State 州/省信息
+// State 州/省信息（从 SX API 接收，保持原始 API 的命名格式）
 type State struct {
 	ID          int    `json:"id"`
-	CountryID   int    `json:"country_id"`
+	CountryID   int    `json:"country_id"`    // 保持原始API格式
 	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name"`  // 保持原始API格式
 }
 
 // StateListMessage 州/省列表响应消息
@@ -112,12 +114,12 @@ type StateListResponse struct {
 	Message StateListMessage `json:"message"`
 }
 
-// City 城市信息
+// City 城市信息（从 SX API 接收，保持原始 API 的命名格式）
 type City struct {
 	ID          int    `json:"id"`
-	StateID     int    `json:"state_id"`
+	StateID     int    `json:"state_id"`      // 保持原始API格式
 	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name"`  // 保持原始API格式
 }
 
 // CityListMessage 城市列表响应消息
@@ -131,10 +133,10 @@ type CityListResponse struct {
 	Message CityListMessage `json:"message"`
 }
 
-// ASNInfo ASN信息
+// ASNInfo ASN信息（从 SX API 接收，保持原始 API 的命名格式）
 type ASNInfo struct {
 	ASN         int    `json:"asn"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name"`  // 保持原始API格式
 	Name        string `json:"name"`
 }
 
@@ -167,17 +169,17 @@ type PlanInfoResponse struct {
 	Message PlanInfo `json:"message"`
 }
 
-// PlanInfoData 格式化后的计划信息（用于返回给客户端）
+// PlanInfoData 格式化后的计划信息（用于返回给客户端，使用驼峰命名）
 type PlanInfoData struct {
 	Tariff           string            `json:"tariff"`
-	TariffName       string            `json:"tariff_name"`
-	TrafficLimit     int64             `json:"traffic_limit"`      // 流量限制（字节）
-	TrafficUsed      int64             `json:"traffic_used"`       // 已使用流量
-	TrafficRemaining int64             `json:"traffic_remaining"`  // 剩余流量
-	ExpiresAt        string            `json:"expires_at"`         // 过期时间
-	ExpiredSeconds   float64           `json:"expired_seconds"`    // 剩余秒数
-	ElapsedDays      float64           `json:"elapsed_days"`       // 已使用天数
-	URLs             map[string]string `json:"urls,omitempty"`     // 代理列表 URLs
+	TariffName       string            `json:"tariffName"`        // 对外API使用驼峰
+	TrafficLimit     int64             `json:"trafficLimit"`      // 对外API使用驼峰
+	TrafficUsed      int64             `json:"trafficUsed"`       // 对外API使用驼峰
+	TrafficRemaining int64             `json:"trafficRemaining"`  // 对外API使用驼峰
+	ExpiresAt        string            `json:"expiresAt"`         // 对外API使用驼峰
+	ExpiredSeconds   float64           `json:"expiredSeconds"`    // 对外API使用驼峰
+	ElapsedDays      float64           `json:"elapsedDays"`       // 对外API使用驼峰
+	URLs             map[string]string `json:"urls,omitempty"`    // 代理列表 URLs
 }
 
 // IPCheckResponse IP检查响应（用于代理测试）
