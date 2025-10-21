@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.23-alpine AS build-env
+FROM golang:1.24-alpine AS build-env
 
 # 设置工作目录
 WORKDIR /src
@@ -38,7 +38,7 @@ WORKDIR /app
 COPY --from=build-env /src/glider /app/glider
 
 # 暴露端口
-EXPOSE 8080 8443
+EXPOSE 6777
 
 # 使用非 root 用户运行
 USER 1000
