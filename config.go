@@ -158,12 +158,6 @@ check=disable: disable health check`)
 	// setup logger
 	log.Set(conf.Verbose, conf.LogFlags)
 
-	if len(conf.Listens) == 0 && conf.DNS == "" && len(conf.Services) == 0 {
-		// flag.Usage()
-		fmt.Fprintf(os.Stderr, "ERROR: listen url must be specified.\n")
-		os.Exit(-1)
-	}
-
 	// tcpbufsize
 	if conf.TCPBufSize > 0 {
 		proxy.TCPBufSize = conf.TCPBufSize
@@ -183,6 +177,22 @@ check=disable: disable health check`)
 			configFile = listenerConfigFile
 		}
 		loadListenerGroups(conf)
+	}
+	
+	// Validate: at least one listener, DNS server, or service must be configured
+	// In multi-listener mode, check ListenerGroups instead of Listens
+	if conf.UseMultiListenerMode {
+		if len(conf.ListenerGroups) == 0 && conf.DNS == "" && len(conf.Services) == 0 {
+			// flag.Usage()
+			fmt.Fprintf(os.Stderr, "ERROR: In multi-listener mode, at least one listener group must be configured.\n")
+			os.Exit(-1)
+		}
+	} else {
+		if len(conf.Listens) == 0 && conf.DNS == "" && len(conf.Services) == 0 {
+			// flag.Usage()
+			fmt.Fprintf(os.Stderr, "ERROR: listen url must be specified.\n")
+			os.Exit(-1)
+		}
 	}
 	
 	return conf
