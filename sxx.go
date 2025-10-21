@@ -583,7 +583,13 @@ func handleSXXGetPlanInfo(w http.ResponseWriter, r *http.Request) {
 // convertToCommonProxy 转换 SXX 代理信息为通用格式
 func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 	// 解析 proxy 字段获取 host 和 port (格式: "89.38.99.242:9999")
-	host, port := sxx.ParseProxyString(proxy.Proxy)
+	host, port, _, _, err := sxx.ParseProxyString(proxy.Proxy)
+	if err != nil {
+		log.F("[sxx] Failed to parse proxy string '%s': %v", proxy.Proxy, err)
+		// 设置默认值
+		host = ""
+		port = 0
+	}
 	
 	common := CommonProxyInfo{
 		Provider:     "SX",
@@ -597,7 +603,7 @@ func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 		CountryName:  proxy.CountryName,
 		StateName:    proxy.StateName,
 		CityName:     proxy.CityName,
-		ProxyTypeId:  proxy.ProxyTypeID,
+		ProxyTypeID:  proxy.ProxyTypeID,
 		SpentTraffic: proxy.TrafficUsed,
 		TrafficLimit: proxy.TrafficLimit,
 		CreatedAt:    proxy.CreatedAt,
