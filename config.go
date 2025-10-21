@@ -15,7 +15,10 @@ import (
 	"github.com/nadoo/glider/rule"
 )
 
-var flag = conflag.New()
+var (
+	flag       = conflag.New()
+	configFile string // Store config file path for listener group parsing
+)
 
 // ListenerGroup represents a listener with its dedicated forwarders.
 type ListenerGroup struct {
@@ -123,6 +126,15 @@ check=disable: disable health check`)
 	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
 
 	flag.Usage = usage
+	
+	// Store config file path before parsing
+	for i, arg := range os.Args {
+		if arg == "-config" && i+1 < len(os.Args) {
+			configFile = os.Args[i+1]
+			break
+		}
+	}
+	
 	if err := flag.Parse(); err != nil {
 		// flag.Usage()
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
@@ -201,13 +213,18 @@ func loadRules(conf *Config) {
 
 // loadListenerGroups parses config file for [listener-N] sections
 func loadListenerGroups(conf *Config) {
-	confFile := flag.ConfFile()
-	if confFile == "" {
+	if configFile == "" {
 		log.F("[config] Multi-listener mode enabled but no config file specified, skipping listener groups")
 		return
 	}
 
-	file, err := os.Open(confFile)
+	// Make path absolute if needed
+	confPath := configFile
+	if !path.IsAbs(confPath) {
+		confPath = path.Join(flag.ConfDir(), confPath)
+	}
+
+	file, err := os.Open(confPath)
 	if err != nil {
 		log.F("[config] Failed to open config file for listener groups: %v", err)
 		return
