@@ -124,6 +124,10 @@ check=disable: disable health check`)
 	// SXX Proxy configs
 	flag.StringVar(&conf.SXXHost, "sxxhost", "", "SXX Proxy API server address")
 	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
+	
+	// Multi-listener config file
+	var listenerConfigFile string
+	flag.StringVar(&listenerConfigFile, "listenerConfig", "", "listener groups config file (only used when useMultiListenerMode=true)")
 
 	flag.Usage = usage
 	
@@ -172,8 +176,12 @@ check=disable: disable health check`)
 
 	loadRules(conf)
 	
-	// Only load listener groups if multi-listener mode is enabled
+	// Load listener groups from separate config file if specified
 	if conf.UseMultiListenerMode {
+		// Use separate listener config file if specified, otherwise use main config file
+		if listenerConfigFile != "" {
+			configFile = listenerConfigFile
+		}
 		loadListenerGroups(conf)
 	}
 	
