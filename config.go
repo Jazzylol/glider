@@ -36,9 +36,13 @@ type Config struct {
 	rules []*rule.Config
 
 	Services []string
-	
+
 	// API server configuration
 	ServerPort string
+
+	// SXX Proxy configuration
+	SXXHost string // SXX API服务器地址
+	SXXKey  string // SXX API鉴权密钥
 }
 
 func parseConfig() *Config {
@@ -94,9 +98,13 @@ check=disable: disable health check`)
 
 	// service configs
 	flag.StringSliceUniqVar(&conf.Services, "service", nil, "run specified services, format: SERVICE_NAME[,SERVICE_CONFIG]")
-	
+
 	// API server configs
 	flag.StringVar(&conf.ServerPort, "serverPort", "", "API server port for remote management (e.g., 8080)")
+
+	// SXX Proxy configs
+	flag.StringVar(&conf.SXXHost, "sxxhost", "", "SXX Proxy API server address")
+	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
 
 	flag.Usage = usage
 	if err := flag.Parse(); err != nil {

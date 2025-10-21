@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 构建产物
+glider
+*.exe
+*.out
+*.test
+*.prof
+
+# 文档
+*.md
+README.md
+docs/
+
+# 配置示例
+config/examples/
+config/*.example
+
+# 测试文件
+*_test.go
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Makefile
+Makefile
+
+# 其他
+.DS_Store
+*.log
+tmp/
+temp/
+

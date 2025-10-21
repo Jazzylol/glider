@@ -30,6 +30,13 @@ func main() {
 		// 设置全局API管理器
 		rule.SetAPIManager(GetAPIManager())
 		
+		// 初始化 SXX API（如果配置了 sxxhost）
+		if err := InitSXXAPI(config.SXXHost, config.SXXKey); err != nil {
+			// SXX API 初始化失败，记录错误但不影响主程序启动
+			log.F("[main] SXX API initialization failed: %v", err)
+			log.F("[main] SXX Proxy features will be disabled")
+		}
+		
 		// 启动API服务器
 		StartAPIServer(config.ServerPort)
 		log.F("[main] API server enabled on port %s", config.ServerPort)

@@ -119,14 +119,13 @@ type APIResponse struct {
 func StartAPIServer(port string) {
 	mux := http.NewServeMux()
 	
-	// 代理切换接口
+	// Glider 内部代理管理接口
 	mux.HandleFunc("/api/proxy/change", handleProxyChange)
-	
-	// 获取当前代理信息接口
 	mux.HandleFunc("/api/proxy/current", handleGetCurrent)
-	
-	// 获取所有代理列表接口
 	mux.HandleFunc("/api/proxy/list", handleGetProxyList)
+
+	// 注册 SXX 代理管理接口
+	RegisterSXXAPIHandlers(mux)
 
 	server := &http.Server{
 		Addr:    ":" + port,
