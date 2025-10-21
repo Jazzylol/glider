@@ -159,6 +159,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 	// 更新 Glider 配置文件
 	mux.HandleFunc("/api/sxxproxy/updateConfig", authenticateSXX(handleUpdateGliderConfig))
 
+	// 重启 Glider 服务
+	mux.HandleFunc("/api/sxxproxy/restart", authenticateSXX(handleRestartGlider))
+
 	log.F("[sxx] SXX API handlers registered")
 }
 
@@ -837,6 +840,33 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 			"listenerCount": len(req.Listeners),
 		},
 	})
+}
+
+// handleRestartGlider 重启 Glider 服务
+func handleRestartGlider(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
+			Success: false,
+			Message: "Method not allowed, use POST",
+		})
+		return
+	}
+
+	log.F("[sxx] Glider restart requested, exiting process...")
+
+	// 先发送响应
+	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+		Success: true,
+		Message: "Glider 正在重启",
+	})
+
+	// 延迟退出，确保响应已发送
+	go func() {
+		// 等待 100 毫秒确保响应发送完成
+		// time.Sleep(100 * time.Millisecond)
+		log.F("[sxx] Exiting Glider process for restart...")
+		os.Exit(0)
+	}()
 }
 
 // writeSXXResponse 写入 SXX API 响应
