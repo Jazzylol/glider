@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/nadoo/conflag"
 
@@ -14,6 +16,14 @@ import (
 )
 
 var flag = conflag.New()
+
+// ListenerGroup represents a listener with its dedicated forwarders.
+type ListenerGroup struct {
+	Name     string         // Group name (e.g., "listener-1")
+	Listen   string         // Listen address
+	Forwards []string       // Dedicated forwarders for this listener
+	Strategy rule.Strategy  // Strategy for this listener group
+}
 
 // Config is global config struct.
 type Config struct {
@@ -26,6 +36,11 @@ type Config struct {
 
 	Forwards []string
 	Strategy rule.Strategy
+
+	// Multi-listener mode: each listener has its own dedicated forwarders
+	UseMultiListenerMode bool
+	// Listener groups for dedicated listen-forward mapping (only used when UseMultiListenerMode=true)
+	ListenerGroups []*ListenerGroup
 
 	RuleFiles []string
 	RulesDir  string
@@ -57,6 +72,7 @@ func parseConfig() *Config {
 	flag.IntVar(&conf.LogFlags, "logflags", 19, "do not change it if you do not know what it is, ref: https://pkg.go.dev/log#pkg-constants")
 	flag.IntVar(&conf.TCPBufSize, "tcpbufsize", 32768, "tcp buffer size in Bytes")
 	flag.IntVar(&conf.UDPBufSize, "udpbufsize", 2048, "udp buffer size in Bytes")
+	flag.BoolVar(&conf.UseMultiListenerMode, "useMultiListenerMode", false, "enable multi-listener mode: each listener has its own dedicated forwarders (requires config file with [listener-N] sections)")
 	flag.StringSliceUniqVar(&conf.Listens, "listen", nil, "listen url, see the URL section below")
 
 	flag.StringSliceVar(&conf.Forwards, "forward", nil, "forward url, see the URL section below")
@@ -143,6 +159,12 @@ check=disable: disable health check`)
 	}
 
 	loadRules(conf)
+	
+	// Only load listener groups if multi-listener mode is enabled
+	if conf.UseMultiListenerMode {
+		loadListenerGroups(conf)
+	}
+	
 	return conf
 }
 
@@ -175,6 +197,95 @@ func loadRules(conf *Config) {
 			conf.rules = append(conf.rules, rule)
 		}
 	}
+}
+
+// loadListenerGroups parses config file for [listener-N] sections
+func loadListenerGroups(conf *Config) {
+	confFile := flag.ConfFile()
+	if confFile == "" {
+		log.F("[config] Multi-listener mode enabled but no config file specified, skipping listener groups")
+		return
+	}
+
+	file, err := os.Open(confFile)
+	if err != nil {
+		log.F("[config] Failed to open config file for listener groups: %v", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var currentGroup *ListenerGroup
+	var inListenerSection bool
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Check for [listener-N] section
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			sectionName := strings.Trim(line, "[]")
+			if strings.HasPrefix(sectionName, "listener-") {
+				// Save previous group if exists
+				if currentGroup != nil && currentGroup.Listen != "" {
+					conf.ListenerGroups = append(conf.ListenerGroups, currentGroup)
+				}
+
+				// Start new group
+				currentGroup = &ListenerGroup{
+					Name:     sectionName,
+					Forwards: []string{},
+					Strategy: conf.Strategy, // Use global strategy as default
+				}
+				inListenerSection = true
+				log.F("[config] Found listener group: %s", sectionName)
+			} else {
+				inListenerSection = false
+			}
+			continue
+		}
+
+		// Parse key=value in listener section
+		if inListenerSection && currentGroup != nil {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+
+			switch key {
+			case "listen":
+				currentGroup.Listen = value
+			case "forward":
+				currentGroup.Forwards = append(currentGroup.Forwards, value)
+			case "strategy":
+				currentGroup.Strategy.Strategy = value
+			case "check":
+				currentGroup.Strategy.Check = value
+			case "checkinterval":
+				fmt.Sscanf(value, "%d", &currentGroup.Strategy.CheckInterval)
+			case "checktimeout":
+				fmt.Sscanf(value, "%d", &currentGroup.Strategy.CheckTimeout)
+			}
+		}
+	}
+
+	// Save last group
+	if currentGroup != nil && currentGroup.Listen != "" {
+		conf.ListenerGroups = append(conf.ListenerGroups, currentGroup)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.F("[config] Error reading config file: %v", err)
+	}
+
+	log.F("[config] Loaded %d listener group(s)", len(conf.ListenerGroups))
 }
 
 func usage() {

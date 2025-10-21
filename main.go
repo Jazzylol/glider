@@ -22,21 +22,37 @@ var (
 )
 
 func main() {
+	// Check if multi-listener mode is enabled
+	if config.UseMultiListenerMode {
+		log.F("[main] Multi-listener mode enabled")
+		runMultiListenerMode()
+	} else {
+		log.F("[main] Traditional mode (all listeners share forwarders)")
+		runTraditionalMode()
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+}
+
+// runTraditionalMode runs glider in traditional mode (all listeners share forwarders)
+func runTraditionalMode() {
 	// global rule proxy
 	pxy := rule.NewProxy(config.Forwards, &config.Strategy, config.rules)
-	
+
 	// setup API manager for API strategy mode
 	if config.ServerPort != "" {
 		// 设置全局API管理器
 		rule.SetAPIManager(GetAPIManager())
-		
+
 		// 初始化 SXX API（如果配置了 sxxhost）
 		if err := InitSXXAPI(config.SXXHost, config.SXXKey); err != nil {
 			// SXX API 初始化失败，记录错误但不影响主程序启动
 			log.F("[main] SXX API initialization failed: %v", err)
 			log.F("[main] SXX Proxy features will be disabled")
 		}
-		
+
 		// 启动API服务器
 		StartAPIServer(config.ServerPort)
 		log.F("[main] API server enabled on port %s", config.ServerPort)
@@ -103,15 +119,108 @@ func main() {
 		}
 		go service.Run()
 	}
-	
+
 	// setup proxy list for API manager if API server is enabled
 	if config.ServerPort != "" {
 		setupAPIProxyList(pxy)
 	}
+}
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+// runMultiListenerMode runs glider in multi-listener mode (each listener has dedicated forwarders)
+func runMultiListenerMode() {
+	if len(config.ListenerGroups) == 0 {
+		log.Fatal("[main] Multi-listener mode enabled but no listener groups configured. Please add [listener-N] sections in config file.")
+	}
+
+	log.F("[main] Starting %d listener group(s)", len(config.ListenerGroups))
+
+	// setup API manager for API strategy mode
+	if config.ServerPort != "" {
+		// 设置全局API管理器
+		rule.SetAPIManager(GetAPIManager())
+
+		// 初始化 SXX API（如果配置了 sxxhost）
+		if err := InitSXXAPI(config.SXXHost, config.SXXKey); err != nil {
+			// SXX API 初始化失败，记录错误但不影响主程序启动
+			log.F("[main] SXX API initialization failed: %v", err)
+			log.F("[main] SXX Proxy features will be disabled")
+		}
+
+		// 启动API服务器
+		StartAPIServer(config.ServerPort)
+		log.F("[main] API server enabled on port %s", config.ServerPort)
+	}
+
+	// Create a proxy for DNS (use first group's forwarders or empty)
+	var dnsProxy *rule.Proxy
+	if len(config.ListenerGroups) > 0 && len(config.ListenerGroups[0].Forwards) > 0 {
+		dnsProxy = rule.NewProxy(config.ListenerGroups[0].Forwards, &config.ListenerGroups[0].Strategy, nil)
+	} else {
+		// Use direct connection for DNS if no forwarders
+		dnsProxy = rule.NewProxy([]string{}, &config.Strategy, nil)
+	}
+
+	// check and setup dns server
+	if config.DNS != "" {
+		d, err := dns.NewServer(config.DNS, dnsProxy, &config.DNSConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		d.Start()
+
+		// custom resolver
+		net.DefaultResolver = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: time.Second * 3}
+				return d.DialContext(ctx, "udp", config.DNS)
+			},
+		}
+	}
+
+	// Create and run each listener group with its dedicated forwarders
+	for _, group := range config.ListenerGroups {
+		if group.Listen == "" {
+			log.F("[main] Skipping listener group %s: no listen address configured", group.Name)
+			continue
+		}
+
+		log.F("[main] Starting listener group: %s, listen=%s, forwards=%d", 
+			group.Name, group.Listen, len(group.Forwards))
+
+		// Create dedicated proxy for this listener group
+		groupProxy := rule.NewProxy(group.Forwards, &group.Strategy, nil)
+		
+		// Enable checkers for this group
+		groupProxy.Check()
+
+		// Create and start listener
+		local, err := proxy.ServerFromURL(group.Listen, groupProxy)
+		if err != nil {
+			log.F("[main] Failed to create listener for group %s: %v", group.Name, err)
+			continue
+		}
+		go local.ListenAndServe()
+
+		log.F("[main] Listener group %s started successfully", group.Name)
+	}
+
+	// run services
+	for _, s := range config.Services {
+		service, err := service.New(s)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go service.Run()
+	}
+
+	// setup proxy list for API manager if API server is enabled
+	// In multi-listener mode, use the first group's proxy
+	if config.ServerPort != "" && len(config.ListenerGroups) > 0 {
+		firstGroupProxy := rule.NewProxy(config.ListenerGroups[0].Forwards, &config.ListenerGroups[0].Strategy, nil)
+		setupAPIProxyList(firstGroupProxy)
+	}
 }
 
 // setupAPIProxyList 设置API管理器的代理列表
