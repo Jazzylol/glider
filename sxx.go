@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/nadoo/glider/pkg/log"
@@ -136,6 +137,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 
 	// 获取计划信息
 	mux.HandleFunc("/api/sxxproxy/plan", authenticateSXX(handleSXXGetPlanInfo))
+
+	// 获取 Glider 配置文件
+	mux.HandleFunc("/api/sxxproxy/config", authenticateSXX(handleGetGliderConfig))
 
 	log.F("[sxx] SXX API handlers registered")
 }
@@ -618,6 +622,57 @@ func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 	}
 
 	return common
+}
+
+// handleGetGliderConfig 获取 Glider 配置文件内容
+func handleGetGliderConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGET && r.Method != http.MethodPOST {
+		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
+			Success: false,
+			Message: "Method not allowed, use GET or POST",
+		})
+		return
+	}
+
+	// 读取配置文件
+	configPath := "/etc/glider/glider.conf"
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		// 如果读取失败，尝试其他可能的路径
+		altPaths := []string{
+			"glider.conf",
+			"/usr/local/etc/glider/glider.conf",
+			"/opt/glider/glider.conf",
+		}
+		
+		for _, path := range altPaths {
+			content, err = os.ReadFile(path)
+			if err == nil {
+				configPath = path
+				break
+			}
+		}
+		
+		if err != nil {
+			log.F("[sxx] Failed to read glider config: %v", err)
+			writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+				Success: false,
+				Message: "读取配置文件失败: " + err.Error(),
+			})
+			return
+		}
+	}
+
+	log.F("[sxx] Get glider config from: %s", configPath)
+
+	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+		Success: true,
+		Message: "获取配置文件成功",
+		Data: map[string]interface{}{
+			"path":    configPath,
+			"content": string(content),
+		},
+	})
 }
 
 // writeSXXResponse 写入 SXX API 响应
