@@ -557,11 +557,26 @@ func handleSXXGetPlanInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.F("[sxx] GetPlanInfo success")
+	// 转换为友好的数据格式
+	planData := sxx.PlanInfoData{
+		Tariff:           response.Message.Tariff,
+		TariffName:       response.Message.TariffName,
+		TrafficLimit:     response.Message.Traff,
+		TrafficUsed:      0, // API 没有返回已使用流量，需要计算
+		TrafficRemaining: response.Message.Traff, // 假设剩余流量等于总流量
+		ExpiresAt:        response.Message.ExpiredDate,
+		ExpiredSeconds:   response.Message.ExpiredSeconds,
+		ElapsedDays:      response.Message.ElapsedDays,
+		URLs:             response.Message.URLs,
+	}
+
+	log.F("[sxx] GetPlanInfo success: tariff=%s, traffic=%d, expires_at=%s", 
+		planData.Tariff, planData.TrafficLimit, planData.ExpiresAt)
+	
 	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
 		Success: true,
 		Message: "获取计划信息成功",
-		Data:    response.Message.Plan,
+		Data:    planData,
 	})
 }
 

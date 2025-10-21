@@ -151,28 +151,35 @@ type ASNListResponse struct {
 	Message ASNListMessage `json:"message"`
 }
 
-// PlanInfo 计划信息
+// PlanInfo 计划信息（从 API 返回的原始数据）
 type PlanInfo struct {
-	ID               int    `json:"id"`
-	Name             string `json:"name"`
-	TrafficLimit     int64  `json:"traffic_limit"`
-	TrafficUsed      int64  `json:"traffic_used"`
-	TrafficRemaining int64  `json:"traffic_remaining"`
-	PortsLimit       int    `json:"ports_limit"`
-	PortsUsed        int    `json:"ports_used"`
-	PortsRemaining   int    `json:"ports_remaining"`
-	ExpiresAt        string `json:"expires_at"`
-}
-
-// PlanInfoMessage 计划信息响应消息
-type PlanInfoMessage struct {
-	Plan PlanInfo `json:"plan"`
+	ExpiredSeconds    float64           `json:"expiredSeconds"`
+	ExpiredDate       string            `json:"expiredDate"`
+	ExpiredTimestamp  int64             `json:"expiredTimestamp"`
+	ElapsedDays       float64           `json:"elapsedDays"`
+	Tariff            string            `json:"tariff"`
+	TariffName        string            `json:"tariffName"`
+	Traff             int64             `json:"traff"`
+	URLs              map[string]string `json:"urls,omitempty"`
 }
 
 // PlanInfoResponse 计划信息响应
 type PlanInfoResponse struct {
-	Success bool            `json:"success"`
-	Message PlanInfoMessage `json:"message"`
+	Success bool     `json:"success"`
+	Message PlanInfo `json:"message"`
+}
+
+// PlanInfoData 格式化后的计划信息（用于返回给客户端）
+type PlanInfoData struct {
+	Tariff           string            `json:"tariff"`
+	TariffName       string            `json:"tariff_name"`
+	TrafficLimit     int64             `json:"traffic_limit"`      // 流量限制（字节）
+	TrafficUsed      int64             `json:"traffic_used"`       // 已使用流量
+	TrafficRemaining int64             `json:"traffic_remaining"`  // 剩余流量
+	ExpiresAt        string            `json:"expires_at"`         // 过期时间
+	ExpiredSeconds   float64           `json:"expired_seconds"`    // 剩余秒数
+	ElapsedDays      float64           `json:"elapsed_days"`       // 已使用天数
+	URLs             map[string]string `json:"urls,omitempty"`     // 代理列表 URLs
 }
 
 // IPCheckResponse IP检查响应（用于代理测试）
