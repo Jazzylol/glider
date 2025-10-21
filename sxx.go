@@ -85,6 +85,21 @@ type PlanInfoRequest struct {
 	APIKey string `json:"apiKey"`
 }
 
+// ListenerConfigItem Listener配置项
+type ListenerConfigItem struct {
+	Index        int    `json:"index"`
+	Listen       string `json:"listen"`
+	Forward      string `json:"forward"`
+	Strategy     string `json:"strategy,omitempty"`
+	Check        string `json:"check,omitempty"`
+	CheckInterval int   `json:"checkInterval,omitempty"`
+}
+
+// UpdateGliderConfigRequest 更新Glider配置请求
+type UpdateGliderConfigRequest struct {
+	Listeners []ListenerConfigItem `json:"listeners"`
+}
+
 var (
 	sxxClient  *sxx.SXProxyClient
 	sxxAuthKey string // SXX API鉴权密钥
@@ -140,6 +155,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 
 	// 获取 Glider 配置文件
 	mux.HandleFunc("/api/sxxproxy/config", authenticateSXX(handleGetGliderConfig))
+
+	// 更新 Glider 配置文件
+	mux.HandleFunc("/api/sxxproxy/updateConfig", authenticateSXX(handleUpdateGliderConfig))
 
 	log.F("[sxx] SXX API handlers registered")
 }
@@ -671,6 +689,158 @@ func handleGetGliderConfig(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"path":    configPath,
 			"content": string(content),
+		},
+	})
+}
+
+// handleUpdateGliderConfig 更新 Glider 配置文件
+func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
+			Success: false,
+			Message: "Method not allowed, use POST",
+		})
+		return
+	}
+
+	// 解析请求
+	var req UpdateGliderConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.F("[sxx] Failed to decode update config request: %v", err)
+		writeSXXResponse(w, http.StatusBadRequest, SXXAPIResponse{
+			Success: false,
+			Message: "无效的请求参数: " + err.Error(),
+		})
+		return
+	}
+
+	log.F("[sxx] Update glider config request: %d listeners", len(req.Listeners))
+
+	// 确定配置文件路径
+	configPath := "/etc/glider/glider.conf"
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// 尝试其他可能的路径
+		altPaths := []string{
+			"glider.conf",
+			"/usr/local/etc/glider/glider.conf",
+			"/opt/glider/glider.conf",
+		}
+		for _, path := range altPaths {
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				break
+			}
+		}
+	}
+
+	// 读取现有配置文件
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		log.F("[sxx] Failed to read glider config: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "读取配置文件失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 解析现有配置，保留非listener配置
+	lines := bytes.Split(content, []byte("\n"))
+	var newLines []string
+	
+	// 保留非listener配置的行
+	for _, line := range lines {
+		lineStr := string(bytes.TrimSpace(line))
+		// 跳过空行和注释中的listener配置
+		if lineStr == "" {
+			newLines = append(newLines, lineStr)
+			continue
+		}
+		
+		// 检查是否是listener相关配置
+		isListenerConfig := false
+		for i := 1; i <= 100; i++ {
+			prefix := fmt.Sprintf("listen%d=", i)
+			forwardPrefix := fmt.Sprintf("forward%d=", i)
+			strategyPrefix := fmt.Sprintf("strategy%d=", i)
+			checkPrefix := fmt.Sprintf("check%d=", i)
+			checkIntervalPrefix := fmt.Sprintf("checkinterval%d=", i)
+			
+			if len(lineStr) >= len(prefix) && lineStr[:len(prefix)] == prefix {
+				isListenerConfig = true
+				break
+			}
+			if len(lineStr) >= len(forwardPrefix) && lineStr[:len(forwardPrefix)] == forwardPrefix {
+				isListenerConfig = true
+				break
+			}
+			if len(lineStr) >= len(strategyPrefix) && lineStr[:len(strategyPrefix)] == strategyPrefix {
+				isListenerConfig = true
+				break
+			}
+			if len(lineStr) >= len(checkPrefix) && lineStr[:len(checkPrefix)] == checkPrefix {
+				isListenerConfig = true
+				break
+			}
+			if len(lineStr) >= len(checkIntervalPrefix) && lineStr[:len(checkIntervalPrefix)] == checkIntervalPrefix {
+				isListenerConfig = true
+				break
+			}
+		}
+		
+		if !isListenerConfig {
+			newLines = append(newLines, lineStr)
+		}
+	}
+
+	// 添加新的listener配置
+	newLines = append(newLines, "")
+	newLines = append(newLines, "# ============================================")
+	newLines = append(newLines, "# Listener 配置（自动生成）")
+	newLines = append(newLines, "# ============================================")
+	
+	for _, listener := range req.Listeners {
+		newLines = append(newLines, "")
+		newLines = append(newLines, fmt.Sprintf("# Listener Group %d", listener.Index))
+		newLines = append(newLines, fmt.Sprintf("listen%d=%s", listener.Index, listener.Listen))
+		newLines = append(newLines, fmt.Sprintf("forward%d=%s", listener.Index, listener.Forward))
+		
+		if listener.Strategy != "" {
+			newLines = append(newLines, fmt.Sprintf("strategy%d=%s", listener.Index, listener.Strategy))
+		}
+		
+		if listener.Check != "" {
+			newLines = append(newLines, fmt.Sprintf("check%d=%s", listener.Index, listener.Check))
+		}
+		
+		if listener.CheckInterval > 0 {
+			newLines = append(newLines, fmt.Sprintf("checkinterval%d=%d", listener.Index, listener.CheckInterval))
+		}
+	}
+
+	// 写入配置文件
+	newContent := []byte(bytes.Join([][]byte{[]byte(newLines[0])}, []byte("\n")))
+	for i := 1; i < len(newLines); i++ {
+		newContent = append(newContent, []byte("\n"+newLines[i])...)
+	}
+
+	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
+		log.F("[sxx] Failed to write glider config: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "写入配置文件失败: " + err.Error(),
+		})
+		return
+	}
+
+	log.F("[sxx] Updated glider config successfully: %s", configPath)
+
+	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+		Success: true,
+		Message: "配置文件更新成功",
+		Data: map[string]interface{}{
+			"path":          configPath,
+			"listenerCount": len(req.Listeners),
 		},
 	})
 }
