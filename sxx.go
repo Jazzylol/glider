@@ -793,15 +793,9 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 添加新的listener配置
-	newLines = append(newLines, "")
-	newLines = append(newLines, "# ============================================")
-	newLines = append(newLines, "# Listener 配置（自动生成）")
-	newLines = append(newLines, "# ============================================")
-	
+	// 添加新的listener配置（不添加注释）
 	for _, listener := range req.Listeners {
 		newLines = append(newLines, "")
-		newLines = append(newLines, fmt.Sprintf("# Listener Group %d", listener.Index))
 		newLines = append(newLines, fmt.Sprintf("listen%d=%s", listener.Index, listener.Listen))
 		newLines = append(newLines, fmt.Sprintf("forward%d=%s", listener.Index, listener.Forward))
 		
