@@ -22,24 +22,24 @@ type SXXAPIResponse struct {
 
 // CommonProxyInfo 通用代理信息
 type CommonProxyInfo struct {
-	Provider      string `json:"provider"`
-	ProxyID       string `json:"proxyId"`
-	Name          string `json:"name"`
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	CountryCode   string `json:"countryCode"`
-	CountryName   string `json:"countryName"`
-	StateName     string `json:"stateName"`
-	CityName      string `json:"cityName"`
-	CityCode      string `json:"cityCode"`
-	ProxyTypeID   int    `json:"proxyTypeID"`
-	SpentTraffic  int64  `json:"spentTraffic"`
-	TrafficLimit  int64  `json:"trafficLimit"`
-	CreatedAt     string `json:"createdAt"`
-	Status        int    `json:"status"`
-	PlainText     string `json:"plainText"`
+	Provider     string `json:"provider"`
+	ProxyID      string `json:"proxyId"`
+	Name         string `json:"name"`
+	Host         string `json:"host"`
+	Port         int    `json:"port"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	CountryCode  string `json:"countryCode"`
+	CountryName  string `json:"countryName"`
+	StateName    string `json:"stateName"`
+	CityName     string `json:"cityName"`
+	CityCode     string `json:"cityCode"`
+	ProxyTypeID  int    `json:"proxyTypeID"`
+	SpentTraffic int64  `json:"spentTraffic"`
+	TrafficLimit int64  `json:"trafficLimit"`
+	CreatedAt    string `json:"createdAt"`
+	Status       int    `json:"status"`
+	PlainText    string `json:"plainText"`
 }
 
 // ProxyCreateRequest 创建代理请求
@@ -86,7 +86,7 @@ type PlanInfoRequest struct {
 }
 
 var (
-	sxxClient *sxx.SXProxyClient
+	sxxClient  *sxx.SXProxyClient
 	sxxAuthKey string // SXX API鉴权密钥
 )
 
@@ -98,23 +98,23 @@ func InitSXXAPI(sxxHost, sxxKey string) error {
 		log.F("[sxx] SXX API disabled: sxxhost not configured")
 		return fmt.Errorf("sxxhost is required for SXX API, please set -sxxhost parameter")
 	}
-	
+
 	// 创建客户端
 	sxxClient = sxx.NewSXProxyClientWithHost(sxxHost)
 	if sxxClient == nil {
 		return fmt.Errorf("failed to create SXX client with host: %s", sxxHost)
 	}
-	
+
 	sxxAuthKey = sxxKey
-	
+
 	log.F("[sxx] SXX API initialized with host: %s", sxxHost)
-	
+
 	if sxxKey != "" {
 		log.F("[sxx] SXX API authentication enabled")
 	} else {
 		log.F("[sxx] SXX API authentication disabled (no sxxkey configured)")
 	}
-	
+
 	return nil
 }
 
@@ -155,7 +155,7 @@ func authenticateSXX(next http.HandlerFunc) http.HandlerFunc {
 
 		// 从请求中获取 sxxKey
 		var sxxKey string
-		
+
 		// 优先从 Header 的 Authorization Bearer token 获取
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != "" {
@@ -166,12 +166,12 @@ func authenticateSXX(next http.HandlerFunc) http.HandlerFunc {
 				sxxKey = authHeader
 			}
 		}
-		
+
 		// 如果 Header 中没有，则从查询参数获取
 		if sxxKey == "" {
 			sxxKey = r.URL.Query().Get("sxxKey")
 		}
-		
+
 		// 如果查询参数也没有，尝试从 POST Body 中获取（仅限 POST 请求）
 		if sxxKey == "" && r.Method == http.MethodPost {
 			var bodyMap map[string]interface{}
@@ -566,7 +566,7 @@ func handleSXXGetPlanInfo(w http.ResponseWriter, r *http.Request) {
 		Tariff:           response.Message.Tariff,
 		TariffName:       response.Message.TariffName,
 		TrafficLimit:     response.Message.Traff,
-		TrafficUsed:      0, // API 没有返回已使用流量，需要计算
+		TrafficUsed:      0,                      // API 没有返回已使用流量，需要计算
 		TrafficRemaining: response.Message.Traff, // 假设剩余流量等于总流量
 		ExpiresAt:        response.Message.ExpiredDate,
 		ExpiredSeconds:   response.Message.ExpiredSeconds,
@@ -574,9 +574,9 @@ func handleSXXGetPlanInfo(w http.ResponseWriter, r *http.Request) {
 		URLs:             response.Message.URLs,
 	}
 
-	log.F("[sxx] GetPlanInfo success: tariff=%s, traffic=%d, expires_at=%s", 
+	log.F("[sxx] GetPlanInfo success: tariff=%s, traffic=%d, expires_at=%s",
 		planData.Tariff, planData.TrafficLimit, planData.ExpiresAt)
-	
+
 	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
 		Success: true,
 		Message: "获取计划信息成功",
@@ -594,7 +594,7 @@ func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 		host = ""
 		port = 0
 	}
-	
+
 	common := CommonProxyInfo{
 		Provider:     "SX",
 		ProxyID:      strconv.Itoa(proxy.ID),
@@ -626,7 +626,7 @@ func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 
 // handleGetGliderConfig 获取 Glider 配置文件内容
 func handleGetGliderConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGET && r.Method != http.MethodPOST {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
 		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
 			Success: false,
 			Message: "Method not allowed, use GET or POST",
@@ -644,7 +644,7 @@ func handleGetGliderConfig(w http.ResponseWriter, r *http.Request) {
 			"/usr/local/etc/glider/glider.conf",
 			"/opt/glider/glider.conf",
 		}
-		
+
 		for _, path := range altPaths {
 			content, err = os.ReadFile(path)
 			if err == nil {
@@ -652,7 +652,7 @@ func handleGetGliderConfig(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-		
+
 		if err != nil {
 			log.F("[sxx] Failed to read glider config: %v", err)
 			writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
@@ -684,4 +684,3 @@ func writeSXXResponse(w http.ResponseWriter, status int, response SXXAPIResponse
 		log.F("[sxx] failed to encode response: %v", err)
 	}
 }
-
