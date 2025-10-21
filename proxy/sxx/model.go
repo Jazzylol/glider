@@ -41,23 +41,21 @@ type Response struct {
 type ProxyInfo struct {
 	ID           int    `json:"id"`
 	Name         string `json:"name"`
-	Proxy        string `json:"proxy"`
-	CountryCode  string `json:"country_code"`
-	CountryName  string `json:"country_name"`
-	StateName    string `json:"state_name"`
-	CityName     string `json:"city_name"`
-	ASN          int    `json:"asn"`
-	Status       int    `json:"status"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
-	ExpiresAt    string `json:"expires_at"`
-	TrafficUsed  int64  `json:"traffic_used"`
-	TrafficLimit int64  `json:"traffic_limit"`
-	TemplateID   *int   `json:"template_id"`
+	Proxy        string `json:"proxy"`          // 格式: host:port
+	Template     string `json:"template"`       // 完整代理URL模板
+	Login        string `json:"login"`          // 用户名
+	Password     string `json:"password"`       // 密码
+	CountryCode  string `json:"countryCode"`    // 国家代码
+	CountryName  string `json:"countryName"`    // 国家名称
+	StateName    string `json:"stateName"`      // 州/省名称
+	CityName     string `json:"cityName"`       // 城市名称
+	ASN          int    `json:"asn"`            // ASN
+	Status       int    `json:"status"`         // 状态
+	ProxyTypeID  int    `json:"proxy_type_id"`  // 代理类型ID
+	CreatedAt    string `json:"created_at"`     // 创建时间
+	TrafficUsed  int64  `json:"spent_traffic_month"`  // 本月已用流量
+	TrafficLimit int64  `json:"traffic_limit"`  // 流量限制
+	TemplateID   *int   `json:"template_id"`    // 模板ID
 }
 
 // ProxyListMessage 代理列表响应消息
