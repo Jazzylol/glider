@@ -1,6 +1,7 @@
 # Glider Multi-Listener Mode Configuration Example
 # Each listener has its own dedicated forwarders
 # All configurations are in ONE file!
+# Format: listen1/forward1, listen2/forward2, listen3/forward3, ...
 
 # Basic configuration
 verbose=True
@@ -18,43 +19,42 @@ sxxkey=your_sxx_key_here
 # ============================================
 # Listener Group 1: US Proxy (Port 10800)
 # ============================================
-listener.1.listen=:10800
-listener.1.forward=http://username:password@us-proxy-host:9999
-listener.1.strategy=rr
-listener.1.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
-listener.1.checkinterval=3000
+listen1=:10800
+forward1=http://username:password@us-proxy-host:9999
+strategy1=rr
+check1=http://www.msftconnecttest.com/connecttest.txt#expect=200
+checkinterval1=3000
 
 # ============================================
 # Listener Group 2: UK Proxy (Port 10801)
 # ============================================
-listener.2.listen=:10801
-listener.2.forward=socks5://username:password@uk-proxy-host:9999
-listener.2.strategy=rr
-listener.2.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
-listener.2.checkinterval=3000
+listen2=:10801
+forward2=socks5://username:password@uk-proxy-host:9999
+strategy2=rr
+check2=http://www.msftconnecttest.com/connecttest.txt#expect=200
+checkinterval2=3000
 
 # ============================================
 # Listener Group 3: Direct Connection (Optional)
 # ============================================
-# listener.3.listen=:10802
-# listener.3.forward=direct://
-# listener.3.strategy=rr
+# listen3=:10802
+# forward3=direct://
+# strategy3=rr
 
 # ============================================
 # Notes:
 # ============================================
-# - Each listener group must have a unique index number (1, 2, 3, ...)
+# - Each listener group uses numbered parameters: listen1/forward1, listen2/forward2, etc.
+# - Maximum 100 listener groups supported (listen1-listen100)
 # - Required parameters:
-#   - listener.N.listen: listen address
-#   - listener.N.forward: at least one forward proxy
+#   - listenN: listen address
+#   - forwardN: forward proxy (at least one)
 # - Optional parameters:
-#   - listener.N.strategy: forwarding strategy (rr/ha/lha/dh)
-#   - listener.N.check: health check URL
-#   - listener.N.checkinterval: health check interval in seconds
-#   - listener.N.checktimeout: health check timeout in seconds
-# - You can add multiple forward proxies for one listener by repeating:
-#   listener.1.forward=proxy1
-#   listener.1.forward=proxy2
+#   - strategyN: forwarding strategy (rr/ha/lha/dh)
+#   - checkN: health check URL
+#   - checkintervalN: health check interval in seconds
+# - Each listener can only have ONE forward proxy in current implementation
+#   (multiple forwards not yet supported in numbered parameter mode)
 
 # ============================================
 # Usage:

@@ -15,11 +15,7 @@ import (
 	"github.com/nadoo/glider/rule"
 )
 
-var (
-	flag              = conflag.New()
-	configFile        string // Store config file path for listener group parsing
-	listenerConfigMap = make(map[string]string) // Store listener config lines before Parse()
-)
+var flag = conflag.New()
 
 // ListenerGroup represents a listener with its dedicated forwarders.
 type ListenerGroup struct {
@@ -125,20 +121,26 @@ check=disable: disable health check`)
 	// SXX Proxy configs
 	flag.StringVar(&conf.SXXHost, "sxxhost", "", "SXX Proxy API server address")
 	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
-	
-	flag.Usage = usage
-	
-	// Store config file path and pre-process it to extract listener configs
-	for i, arg := range os.Args {
-		if arg == "-config" && i+1 < len(os.Args) {
-			configFile = os.Args[i+1]
-			// Pre-process config file to extract listener.N.* parameters
-			// This prevents conflag from validating these unknown parameters
-			preprocessConfigFile(configFile)
-			break
-		}
+
+	// Multi-listener mode: pre-register listener1-100, forward1-100 parameters
+	// This allows conflag to recognize these parameters
+	const maxListeners = 100
+	listenerParams := make([]string, maxListeners)
+	forwardParams := make([]string, maxListeners)
+	strategyParams := make([]string, maxListeners)
+	checkParams := make([]string, maxListeners)
+	checkIntervalParams := make([]int, maxListeners)
+
+	for i := 1; i <= maxListeners; i++ {
+		flag.StringVar(&listenerParams[i-1], fmt.Sprintf("listen%d", i), "", fmt.Sprintf("listener group %d: listen address", i))
+		flag.StringVar(&forwardParams[i-1], fmt.Sprintf("forward%d", i), "", fmt.Sprintf("listener group %d: forward proxy", i))
+		flag.StringVar(&strategyParams[i-1], fmt.Sprintf("strategy%d", i), "", fmt.Sprintf("listener group %d: strategy (rr/ha/lha/dh)", i))
+		flag.StringVar(&checkParams[i-1], fmt.Sprintf("check%d", i), "", fmt.Sprintf("listener group %d: health check URL", i))
+		flag.IntVar(&checkIntervalParams[i-1], fmt.Sprintf("checkinterval%d", i), 0, fmt.Sprintf("listener group %d: check interval(seconds)", i))
 	}
-	
+
+	flag.Usage = usage
+
 	if err := flag.Parse(); err != nil {
 		// flag.Usage()
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
@@ -170,9 +172,9 @@ check=disable: disable health check`)
 
 	loadRules(conf)
 	
-	// Load listener groups from pre-processed config
+	// Load listener groups from numbered parameters (listen1/forward1, listen2/forward2, ...)
 	if conf.UseMultiListenerMode {
-		loadListenerGroupsFromMap(conf)
+		loadListenerGroupsFromParams(conf, listenerParams, forwardParams, strategyParams, checkParams, checkIntervalParams)
 	}
 	
 	// Validate: at least one listener, DNS server, or service must be configured
@@ -225,106 +227,49 @@ func loadRules(conf *Config) {
 	}
 }
 
-// preprocessConfigFile reads config file and extracts listener.N.* parameters
-// This prevents conflag from validating these unknown parameters
-func preprocessConfigFile(confPath string) {
-	// Make path absolute if needed
-	if !path.IsAbs(confPath) {
-		if wd, err := os.Getwd(); err == nil {
-			confPath = path.Join(wd, confPath)
-		}
-	}
+// loadListenerGroupsFromParams parses listener groups from numbered parameters
+// Format: listen1/forward1, listen2/forward2, etc.
+func loadListenerGroupsFromParams(conf *Config, listenerParams, forwardParams, strategyParams, checkParams []string, checkIntervalParams []int) {
+	for i := 0; i < len(listenerParams); i++ {
+		listen := strings.TrimSpace(listenerParams[i])
+		forward := strings.TrimSpace(forwardParams[i])
 
-	file, err := os.Open(confPath)
-	if err != nil {
-		// If we can't open the file, let conflag handle it
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
+		// Skip if no listen address configured
+		if listen == "" {
 			continue
 		}
 
-		// Parse key=value
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
+		// Create listener group
+		group := &ListenerGroup{
+			Name:     fmt.Sprintf("listener-%d", i+1),
+			Listen:   listen,
+			Forwards: []string{},
+			Strategy: conf.Strategy, // Use global strategy as default
 		}
 
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Store listener.N.* parameters
-		if strings.HasPrefix(key, "listener.") {
-			listenerConfigMap[key] = value
+		// Add forward if specified
+		if forward != "" {
+			group.Forwards = append(group.Forwards, forward)
 		}
-	}
-}
 
-// loadListenerGroupsFromMap parses listener group parameters from pre-processed map
-func loadListenerGroupsFromMap(conf *Config) {
-	if len(listenerConfigMap) == 0 {
-		log.F("[config] Multi-listener mode enabled but no listener groups configured")
-		return
-	}
-
-	// Map to store listener groups by index
-	groupsMap := make(map[string]*ListenerGroup)
-
-	// Parse all listener.N.* parameters from the map
-	for key, value := range listenerConfigMap {
-		// Check if it's a listener group parameter (format: listener.N.xxx)
-		if strings.HasPrefix(key, "listener.") {
-			keyParts := strings.Split(key, ".")
-			if len(keyParts) != 3 {
-				continue
-			}
-
-			groupIndex := keyParts[1] // e.g., "1", "2"
-			paramName := keyParts[2]  // e.g., "listen", "forward"
-
-			// Get or create group
-			group, exists := groupsMap[groupIndex]
-			if !exists {
-				group = &ListenerGroup{
-					Name:     "listener-" + groupIndex,
-					Forwards: []string{},
-					Strategy: conf.Strategy, // Use global strategy as default
-				}
-				groupsMap[groupIndex] = group
-			}
-
-			// Parse parameter
-			switch paramName {
-			case "listen":
-				group.Listen = value
-			case "forward":
-				group.Forwards = append(group.Forwards, value)
-			case "strategy":
-				group.Strategy.Strategy = value
-			case "check":
-				group.Strategy.Check = value
-			case "checkinterval":
-				fmt.Sscanf(value, "%d", &group.Strategy.CheckInterval)
-			case "checktimeout":
-				fmt.Sscanf(value, "%d", &group.Strategy.CheckTimeout)
-			}
+		// Override strategy if specified
+		if strategyParams[i] != "" {
+			group.Strategy.Strategy = strategyParams[i]
 		}
-	}
 
-	// Convert map to slice
-	for _, group := range groupsMap {
-		if group.Listen != "" {
-			conf.ListenerGroups = append(conf.ListenerGroups, group)
-			log.F("[config] Loaded listener group: %s, listen=%s, forwards=%d", 
-				group.Name, group.Listen, len(group.Forwards))
+		// Override check URL if specified
+		if checkParams[i] != "" {
+			group.Strategy.Check = checkParams[i]
 		}
+
+		// Override check interval if specified
+		if checkIntervalParams[i] > 0 {
+			group.Strategy.CheckInterval = checkIntervalParams[i]
+		}
+
+		conf.ListenerGroups = append(conf.ListenerGroups, group)
+		log.F("[config] Loaded listener group: %s, listen=%s, forwards=%d", 
+			group.Name, group.Listen, len(group.Forwards))
 	}
 
 	log.F("[config] Loaded %d listener group(s)", len(conf.ListenerGroups))
