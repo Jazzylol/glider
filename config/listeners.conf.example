@@ -1,0 +1,47 @@
+# Glider Listener Groups Configuration Example
+# Each listener group has its own dedicated forwarders
+#
+# This file should be specified in the main config file with:
+# listenerConfig=listeners.conf
+
+# ============================================
+# Listener Group 1: US Proxy (Port 10800)
+# ============================================
+listener.1.listen=:10800
+listener.1.forward=http://username:password@us-proxy-host:9999
+listener.1.strategy=rr
+listener.1.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
+listener.1.checkinterval=3000
+
+# ============================================
+# Listener Group 2: UK Proxy (Port 10801)
+# ============================================
+listener.2.listen=:10801
+listener.2.forward=socks5://username:password@uk-proxy-host:9999
+listener.2.strategy=rr
+listener.2.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
+listener.2.checkinterval=3000
+
+# ============================================
+# Listener Group 3: Direct Connection
+# ============================================
+# listener.3.listen=:10802
+# listener.3.forward=direct://
+# listener.3.strategy=rr
+
+# ============================================
+# Notes:
+# ============================================
+# - Each listener group must have a unique index number (1, 2, 3, ...)
+# - Required parameters:
+#   - listener.N.listen: listen address
+#   - listener.N.forward: at least one forward proxy
+# - Optional parameters:
+#   - listener.N.strategy: forwarding strategy (rr/ha/lha/dh)
+#   - listener.N.check: health check URL
+#   - listener.N.checkinterval: health check interval in seconds
+#   - listener.N.checktimeout: health check timeout in seconds
+# - You can add multiple forward proxies for one listener:
+#   listener.1.forward=proxy1
+#   listener.1.forward=proxy2
+

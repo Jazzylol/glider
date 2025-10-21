@@ -1,11 +1,18 @@
-# Glider Multi-Listener Mode Configuration Example
+# Glider Multi-Listener Mode Configuration Example - Main Config File
 # Each listener has its own dedicated forwarders
+# 
+# IMPORTANT: Listener group configurations should be placed in a SEPARATE file
+# to avoid conflag validation errors.
 
 # Basic configuration
 verbose=True
 
 # Enable multi-listener mode
 useMultiListenerMode=true
+
+# Listener groups configuration file (REQUIRED when useMultiListenerMode=true)
+# This file contains all listener.N.xxx parameters
+listenerConfig=listeners.conf
 
 # API server configuration
 serverPort=6777
@@ -15,50 +22,12 @@ sxxhost=https://api.sx.org
 sxxkey=your_sxx_key_here
 
 # ============================================
-# Listener Group 1: US Proxy (Port 10800)
+# Usage:
 # ============================================
-# Listen address
-listener.1.listen=:10800
-# Dedicated forward proxy (US)
-listener.1.forward=http://username:password@us-proxy-host:9999
-# Strategy configuration
-listener.1.strategy=rr
-listener.1.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
-listener.1.checkinterval=3000
-
-# ============================================
-# Listener Group 2: UK Proxy (Port 10801)
-# ============================================
-# Listen address
-listener.2.listen=:10801
-# Dedicated forward proxy (UK)
-listener.2.forward=socks5://username:password@uk-proxy-host:9999
-# Strategy configuration
-listener.2.strategy=rr
-listener.2.check=http://www.msftconnecttest.com/connecttest.txt#expect=200
-listener.2.checkinterval=3000
-
-# ============================================
-# Listener Group 3: Direct Connection (Port 10802)
-# ============================================
-# You can add more listener groups as needed
-# listener.3.listen=:10802
-# listener.3.forward=direct://
-# listener.3.strategy=rr
-
-# ============================================
-# Notes:
-# ============================================
-# - Each listener group must have a unique index number (1, 2, 3, ...)
-# - Required parameters:
-#   - listener.N.listen: listen address
-#   - listener.N.forward: at least one forward proxy
-# - Optional parameters:
-#   - listener.N.strategy: forwarding strategy (rr/ha/lha/dh)
-#   - listener.N.check: health check URL
-#   - listener.N.checkinterval: health check interval in seconds
-#   - listener.N.checktimeout: health check timeout in seconds
-# - You can add multiple forward proxies for one listener:
-#   listener.1.forward=proxy1
-#   listener.1.forward=proxy2
+# 1. Create glider.conf with the above content
+# 2. Create listeners.conf with listener group configurations
+#    (see listeners.conf.example for format)
+# 3. Run: glider -config glider.conf
+#
+# See listeners.conf.example for listener group configuration format
 
