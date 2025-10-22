@@ -719,6 +719,12 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.F("[sxx] Update glider config request: %d listeners", len(req.Listeners))
+	
+	// 调试日志：打印每个 listener 的详细信息
+	for i, listener := range req.Listeners {
+		log.F("[sxx] Listener %d: index=%d, listen=%s, forward=%s, ipAllow=%s", 
+			i, listener.Index, listener.Listen, listener.Forward, listener.IPAllow)
+	}
 
 	// 确定配置文件路径
 	configPath := "/etc/glider/glider.conf"
@@ -821,7 +827,9 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		if listener.IPAllow != "" {
-			newLines = append(newLines, fmt.Sprintf("ipallow%d=%s", listener.Index, listener.IPAllow))
+			ipAllowLine := fmt.Sprintf("ipallow%d=%s", listener.Index, listener.IPAllow)
+			newLines = append(newLines, ipAllowLine)
+			log.F("[sxx] Added IP whitelist for listener %d: %s", listener.Index, listener.IPAllow)
 		}
 	}
 
