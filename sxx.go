@@ -87,12 +87,13 @@ type PlanInfoRequest struct {
 
 // ListenerConfigItem Listener配置项
 type ListenerConfigItem struct {
-	Index        int    `json:"index"`
-	Listen       string `json:"listen"`
-	Forward      string `json:"forward"`
-	Strategy     string `json:"strategy,omitempty"`
-	Check        string `json:"check,omitempty"`
-	CheckInterval int   `json:"checkInterval,omitempty"`
+	Index         int    `json:"index"`
+	Listen        string `json:"listen"`
+	Forward       string `json:"forward"`
+	Strategy      string `json:"strategy,omitempty"`
+	Check         string `json:"check,omitempty"`
+	CheckInterval int    `json:"checkInterval,omitempty"`
+	IPAllow       string `json:"ipAllow,omitempty"` // IP whitelist
 }
 
 // UpdateGliderConfigRequest 更新Glider配置请求
@@ -768,6 +769,7 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 			strategyPrefix := fmt.Sprintf("strategy%d=", i)
 			checkPrefix := fmt.Sprintf("check%d=", i)
 			checkIntervalPrefix := fmt.Sprintf("checkinterval%d=", i)
+			ipAllowPrefix := fmt.Sprintf("ipallow%d=", i)
 			
 			if len(lineStr) >= len(prefix) && lineStr[:len(prefix)] == prefix {
 				isListenerConfig = true
@@ -786,6 +788,10 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			if len(lineStr) >= len(checkIntervalPrefix) && lineStr[:len(checkIntervalPrefix)] == checkIntervalPrefix {
+				isListenerConfig = true
+				break
+			}
+			if len(lineStr) >= len(ipAllowPrefix) && lineStr[:len(ipAllowPrefix)] == ipAllowPrefix {
 				isListenerConfig = true
 				break
 			}
@@ -812,6 +818,10 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 		
 		if listener.CheckInterval > 0 {
 			newLines = append(newLines, fmt.Sprintf("checkinterval%d=%d", listener.Index, listener.CheckInterval))
+		}
+		
+		if listener.IPAllow != "" {
+			newLines = append(newLines, fmt.Sprintf("ipallow%d=%s", listener.Index, listener.IPAllow))
 		}
 	}
 
