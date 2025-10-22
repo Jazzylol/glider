@@ -17,12 +17,13 @@ import (
 
 // HTTP struct.
 type HTTP struct {
-	dialer   proxy.Dialer
-	proxy    proxy.Proxy
-	addr     string
-	user     string
-	password string
-	pretend  bool
+	dialer     proxy.Dialer
+	proxy      proxy.Proxy
+	addr       string
+	user       string
+	password   string
+	pretend    bool
+	ipAllowMap map[string]bool // IP whitelist map for O(1) lookup
 }
 
 func init() {
@@ -111,6 +112,19 @@ func extractUserPass(auth string) (username, password string, ok bool) {
 	}
 
 	return s[:idx], s[idx+1:], true
+}
+
+func (h *HTTP) SetIPAllow(allowList string) {
+	if allowList == "" {
+		return
+	}
+	h.ipAllowMap = make(map[string]bool)
+	for _, ip := range strings.Split(allowList, ",") {
+		ip = strings.TrimSpace(ip)
+		if ip != "" {
+			h.ipAllowMap[ip] = true
+		}
+	}
 }
 
 func init() {

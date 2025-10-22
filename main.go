@@ -201,6 +201,15 @@ func runMultiListenerMode() {
 			log.F("[main] Failed to create listener for group %s: %v", group.Name, err)
 			continue
 		}
+
+		// Set IP whitelist if specified
+		if group.IPAllow != "" {
+			if setter, ok := local.(interface{ SetIPAllow(string) }); ok {
+				setter.SetIPAllow(group.IPAllow)
+				log.F("[main] IP whitelist enabled for %s: %s", group.Name, group.IPAllow)
+			}
+		}
+
 		go local.ListenAndServe()
 
 		log.F("[main] Listener group %s started successfully", group.Name)

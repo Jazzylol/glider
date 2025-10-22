@@ -48,6 +48,16 @@ func (s *Socks5) ListenAndServeTCP() {
 			continue
 		}
 
+		// IP whitelist check
+		if len(s.ipAllowMap) > 0 {
+			host, _, err := net.SplitHostPort(c.RemoteAddr().String())
+			if err != nil || host == "" || !s.ipAllowMap[host] {
+				log.F("[socks5] IP not allowed: %s", c.RemoteAddr())
+				c.Close()
+				continue
+			}
+		}
+
 		go s.Serve(c)
 	}
 }

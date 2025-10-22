@@ -36,6 +36,16 @@ func (s *HTTP) ListenAndServe() {
 			continue
 		}
 
+		// IP whitelist check
+		if len(s.ipAllowMap) > 0 {
+			host, _, err := net.SplitHostPort(c.RemoteAddr().String())
+			if err != nil || host == "" || !s.ipAllowMap[host] {
+				log.F("[http] IP not allowed: %s", c.RemoteAddr())
+				c.Close()
+				continue
+			}
+		}
+
 		go s.Serve(c)
 	}
 }

@@ -22,6 +22,7 @@ type ListenerGroup struct {
 	Listen   string        // Listen address
 	Forwards []string      // Dedicated forwarders for this listener
 	Strategy rule.Strategy // Strategy for this listener group
+	IPAllow  string        // IP whitelist: comma-separated IPs (e.g., "192.168.1.100,10.0.0.50")
 }
 
 // Config is global config struct.
@@ -129,6 +130,7 @@ check=disable: disable health check`)
 	strategyParams := make([]string, maxListeners)
 	checkParams := make([]string, maxListeners)
 	checkIntervalParams := make([]int, maxListeners)
+	ipAllowParams := make([]string, maxListeners)
 
 	for i := 1; i <= maxListeners; i++ {
 		flag.StringVar(&listenerParams[i-1], fmt.Sprintf("listen%d", i), "", fmt.Sprintf("listener group %d: listen address", i))
@@ -136,6 +138,7 @@ check=disable: disable health check`)
 		flag.StringVar(&strategyParams[i-1], fmt.Sprintf("strategy%d", i), "", fmt.Sprintf("listener group %d: strategy (rr/ha/lha/dh)", i))
 		flag.StringVar(&checkParams[i-1], fmt.Sprintf("check%d", i), "", fmt.Sprintf("listener group %d: health check URL", i))
 		flag.IntVar(&checkIntervalParams[i-1], fmt.Sprintf("checkinterval%d", i), 0, fmt.Sprintf("listener group %d: check interval(seconds)", i))
+		flag.StringVar(&ipAllowParams[i-1], fmt.Sprintf("ipallow%d", i), "", fmt.Sprintf("listener group %d: IP whitelist (comma-separated IPs, e.g., 192.168.1.100,10.0.0.50)", i))
 	}
 
 	flag.Usage = usage
@@ -173,7 +176,7 @@ check=disable: disable health check`)
 
 	// Load listener groups from numbered parameters (listen1/forward1, listen2/forward2, ...)
 	if conf.UseMultiListenerMode {
-		loadListenerGroupsFromParams(conf, listenerParams, forwardParams, strategyParams, checkParams, checkIntervalParams)
+		loadListenerGroupsFromParams(conf, listenerParams, forwardParams, strategyParams, checkParams, checkIntervalParams, ipAllowParams)
 	}
 
 	// Validate: at least one listener, DNS server, or service must be configured
@@ -228,7 +231,7 @@ func loadRules(conf *Config) {
 
 // loadListenerGroupsFromParams parses listener groups from numbered parameters
 // Format: listen1/forward1, listen2/forward2, etc.
-func loadListenerGroupsFromParams(conf *Config, listenerParams, forwardParams, strategyParams, checkParams []string, checkIntervalParams []int) {
+func loadListenerGroupsFromParams(conf *Config, listenerParams, forwardParams, strategyParams, checkParams []string, checkIntervalParams []int, ipAllowParams []string) {
 	for i := 0; i < len(listenerParams); i++ {
 		listen := strings.TrimSpace(listenerParams[i])
 		forward := strings.TrimSpace(forwardParams[i])
@@ -264,6 +267,11 @@ func loadListenerGroupsFromParams(conf *Config, listenerParams, forwardParams, s
 		// Override check interval if specified
 		if checkIntervalParams[i] > 0 {
 			group.Strategy.CheckInterval = checkIntervalParams[i]
+		}
+
+		// Set IP whitelist if specified
+		if ipAllowParams[i] != "" {
+			group.IPAllow = strings.TrimSpace(ipAllowParams[i])
 		}
 
 		conf.ListenerGroups = append(conf.ListenerGroups, group)

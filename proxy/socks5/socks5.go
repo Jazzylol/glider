@@ -21,11 +21,12 @@ const Version = 5
 
 // Socks5 is a base socks5 struct.
 type Socks5 struct {
-	dialer   proxy.Dialer
-	proxy    proxy.Proxy
-	addr     string
-	user     string
-	password string
+	dialer     proxy.Dialer
+	proxy      proxy.Proxy
+	addr       string
+	user       string
+	password   string
+	ipAllowMap map[string]bool // IP whitelist map for O(1) lookup
 }
 
 // NewSocks5 returns a Proxy that makes SOCKS v5 connections to the given address.
@@ -50,6 +51,20 @@ func NewSocks5(s string, d proxy.Dialer, p proxy.Proxy) (*Socks5, error) {
 	}
 
 	return h, nil
+}
+
+// SetIPAllow sets the IP whitelist for this SOCKS5 server.
+func (s *Socks5) SetIPAllow(allowList string) {
+	if allowList == "" {
+		return
+	}
+	s.ipAllowMap = make(map[string]bool)
+	for _, ip := range strings.Split(allowList, ",") {
+		ip = strings.TrimSpace(ip)
+		if ip != "" {
+			s.ipAllowMap[ip] = true
+		}
+	}
 }
 
 func init() {
