@@ -11,6 +11,7 @@ package socks5
 
 import (
 	"net/url"
+	"strings"
 
 	"github.com/nadoo/glider/pkg/log"
 	"github.com/nadoo/glider/proxy"
