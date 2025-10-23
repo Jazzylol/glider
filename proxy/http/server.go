@@ -113,15 +113,15 @@ func (s *HTTP) servHTTPS(r *request, c net.Conn) {
 	duration := time.Since(startTime)
 
 	if err != nil {
-		log.F("[http] %s <-> %s via %s, relay error: %v, duration: %v, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), r.uri, dialer.Addr(), err, duration, float64(upBytes)/1024, float64(downBytes)/1024)
+		log.F("[http] %s <-> %s via %s, relay error: %v, duration: %.2fs, up: %.2f KB, down: %.2f KB",
+			c.RemoteAddr(), r.uri, dialer.Addr(), err, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 		// record remote conn failure only
 		if !strings.Contains(err.Error(), s.addr) {
 			s.proxy.Record(dialer, false)
 		}
 	} else {
-		log.F("[http] %s <-> %s [c] via %s, duration: %v, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), r.uri, dialer.Addr(), duration, float64(upBytes)/1024, float64(downBytes)/1024)
+		log.F("[http] %s <-> %s [c] via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
+			c.RemoteAddr(), r.uri, dialer.Addr(), duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 }
 
@@ -188,8 +188,8 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	downBytes, _ := proxy.Copy(c, r)
 	duration := time.Since(startTime)
 
-	log.F("[http] %s <-> %s via %s, duration: %v, up: %.2f KB, down: %.2f KB",
-		c.RemoteAddr(), req.target, dialer.Addr(), duration, float64(upBytes)/1024, float64(downBytes)/1024)
+	log.F("[http] %s <-> %s via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
+		c.RemoteAddr(), req.target, dialer.Addr(), duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 }
 
 // relayWithStats relays between left and right and returns bytes transferred.
