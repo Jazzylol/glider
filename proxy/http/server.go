@@ -1,11 +1,14 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/textproto"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nadoo/glider/pkg/log"
@@ -103,14 +106,22 @@ func (s *HTTP) servHTTPS(r *request, c net.Conn) {
 
 	io.WriteString(c, "HTTP/1.1 200 Connection established\r\n\r\n")
 
+	startTime := time.Now()
 	log.F("[http] %s <-> %s [c] via %s", c.RemoteAddr(), r.uri, dialer.Addr())
 
-	if err = proxy.Relay(c, rc); err != nil {
-		log.F("[http] %s <-> %s via %s, relay error: %v", c.RemoteAddr(), r.uri, dialer.Addr(), err)
+	upBytes, downBytes, err := s.relayWithStats(c, rc)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		log.F("[http] %s <-> %s via %s, relay error: %v, duration: %v, up: %.2f KB, down: %.2f KB",
+			c.RemoteAddr(), r.uri, dialer.Addr(), err, duration, float64(upBytes)/1024, float64(downBytes)/1024)
 		// record remote conn failure only
 		if !strings.Contains(err.Error(), s.addr) {
 			s.proxy.Record(dialer, false)
 		}
+	} else {
+		log.F("[http] %s <-> %s [c] via %s, duration: %v, up: %.2f KB, down: %.2f KB",
+			c.RemoteAddr(), r.uri, dialer.Addr(), duration, float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 }
 
@@ -122,6 +133,9 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 		return
 	}
 	defer rc.Close()
+
+	startTime := time.Now()
+	var upBytes int64
 
 	buf := pool.GetBytesBuffer()
 	defer pool.PutBytesBuffer(buf)
@@ -136,7 +150,7 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	// copy the left request bytes to remote server. eg. length specificed or chunked body.
 	go func() {
 		if _, err := c.Reader().Peek(1); err == nil {
-			proxy.Copy(rc, c)
+			upBytes, _ = proxy.Copy(rc, c)
 			rc.SetDeadline(time.Now())
 			c.SetDeadline(time.Now())
 		}
@@ -169,8 +183,39 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	writeStartLine(buf, proto, code, status)
 	writeHeaders(buf, header)
 
-	log.F("[http] %s <-> %s via %s", c.RemoteAddr(), req.target, dialer.Addr())
 	c.Write(buf.Bytes())
 
-	proxy.Copy(c, r)
+	downBytes, _ := proxy.Copy(c, r)
+	duration := time.Since(startTime)
+
+	log.F("[http] %s <-> %s via %s, duration: %v, up: %.2f KB, down: %.2f KB",
+		c.RemoteAddr(), req.target, dialer.Addr(), duration, float64(upBytes)/1024, float64(downBytes)/1024)
+}
+
+// relayWithStats relays between left and right and returns bytes transferred.
+func (s *HTTP) relayWithStats(left, right net.Conn) (upBytes, downBytes int64, err error) {
+	var err1 error
+	var wg sync.WaitGroup
+	var wait = 5 * time.Second
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		downBytes, err1 = proxy.Copy(right, left)
+		right.SetReadDeadline(time.Now().Add(wait)) // unblock read on right
+	}()
+
+	upBytes, err = proxy.Copy(left, right)
+	left.SetReadDeadline(time.Now().Add(wait)) // unblock read on left
+	wg.Wait()
+
+	if err1 != nil && !errors.Is(err1, os.ErrDeadlineExceeded) {
+		return upBytes, downBytes, err1
+	}
+
+	if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
+		return upBytes, downBytes, err
+	}
+
+	return upBytes, downBytes, nil
 }
