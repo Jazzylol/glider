@@ -2,7 +2,8 @@ name: Build
 on:
   push:
     branches:
-      - "main"      # 只在 main 分支构建
+      - "main"      # 在 main 分支构建
+      - "dev"       # 在 dev 分支构建
     tags:
       - "*"         # 打 tag 时也会构建
   pull_request:
