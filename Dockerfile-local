@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.24-alpine AS build-env
+FROM golang:1.23-alpine AS build-env
 
 # 设置工作目录
 WORKDIR /src
