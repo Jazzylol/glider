@@ -109,7 +109,7 @@ func checkSuccess(resp Response) error {
 				errMsg = msg
 			}
 		}
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 	return nil
 }

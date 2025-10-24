@@ -761,45 +761,43 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 	// 保留非listener配置的行
 	for _, line := range lines {
 		lineStr := string(bytes.TrimSpace(line))
-		// 跳过空行和注释中的listener配置
+		
+		// 跳过空行
 		if lineStr == "" {
-			newLines = append(newLines, lineStr)
 			continue
 		}
 		
 		// 检查是否是listener相关配置
 		isListenerConfig := false
-		for i := 1; i <= 100; i++ {
-			prefix := fmt.Sprintf("listen%d=", i)
-			forwardPrefix := fmt.Sprintf("forward%d=", i)
-			strategyPrefix := fmt.Sprintf("strategy%d=", i)
-			checkPrefix := fmt.Sprintf("check%d=", i)
-			checkIntervalPrefix := fmt.Sprintf("checkinterval%d=", i)
-			ipAllowPrefix := fmt.Sprintf("ipallow%d=", i)
-			
-			if len(lineStr) >= len(prefix) && lineStr[:len(prefix)] == prefix {
-				isListenerConfig = true
-				break
-			}
-			if len(lineStr) >= len(forwardPrefix) && lineStr[:len(forwardPrefix)] == forwardPrefix {
-				isListenerConfig = true
-				break
-			}
-			if len(lineStr) >= len(strategyPrefix) && lineStr[:len(strategyPrefix)] == strategyPrefix {
-				isListenerConfig = true
-				break
-			}
-			if len(lineStr) >= len(checkPrefix) && lineStr[:len(checkPrefix)] == checkPrefix {
-				isListenerConfig = true
-				break
-			}
-			if len(lineStr) >= len(checkIntervalPrefix) && lineStr[:len(checkIntervalPrefix)] == checkIntervalPrefix {
-				isListenerConfig = true
-				break
-			}
-			if len(lineStr) >= len(ipAllowPrefix) && lineStr[:len(ipAllowPrefix)] == ipAllowPrefix {
-				isListenerConfig = true
-				break
+		
+		// 使用更高效的方式检查配置前缀
+		listenerPrefixes := []string{
+			"listen", "forward", "strategy", "check", "checkinterval", "ipallow",
+		}
+		
+		for _, prefix := range listenerPrefixes {
+			// 检查是否以 prefix 开头，后面跟数字和等号
+			if len(lineStr) > len(prefix) {
+				// 提取可能的数字部分
+				remaining := lineStr[len(prefix):]
+				hasDigit := false
+				equalPos := -1
+				
+				for i, ch := range remaining {
+					if ch >= '0' && ch <= '9' {
+						hasDigit = true
+					} else if ch == '=' && hasDigit {
+						equalPos = i
+						break
+					} else {
+						break
+					}
+				}
+				
+				if equalPos >= 0 {
+					isListenerConfig = true
+					break
+				}
 			}
 		}
 		
@@ -834,10 +832,15 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 写入配置文件
-	newContent := []byte(bytes.Join([][]byte{[]byte(newLines[0])}, []byte("\n")))
-	for i := 1; i < len(newLines); i++ {
-		newContent = append(newContent, []byte("\n"+newLines[i])...)
+	// 使用 strings.Join 拼接所有行，避免空行累积
+	var builder bytes.Buffer
+	for i, line := range newLines {
+		if i > 0 {
+			builder.WriteString("\n")
+		}
+		builder.WriteString(line)
 	}
+	newContent := builder.Bytes()
 
 	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
 		log.F("[sxx] Failed to write glider config: %v", err)
