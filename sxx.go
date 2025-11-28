@@ -101,6 +101,13 @@ type UpdateGliderConfigRequest struct {
 	Listeners []ListenerConfigItem `json:"listeners"`
 }
 
+// ProxyActivateRequest 激活代理请求
+type ProxyActivateRequest struct {
+	URL     string            `json:"url"`     // 目标 URL
+	Body    string            `json:"body"`    // 请求体 (JSON 字符串)
+	Headers map[string]string `json:"headers"` // 请求头
+}
+
 var (
 	sxxClient  *sxx.SXProxyClient
 	sxxAuthKey string // SXX API鉴权密钥
@@ -162,6 +169,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 
 	// 重启 Glider 服务
 	mux.HandleFunc("/api/sxxproxy/restart", authenticateSXX(handleRestartGlider))
+
+	// 激活 SX 代理 (应用 Promo Code)
+	mux.HandleFunc("/api/sxxproxy/activate", authenticateSXX(handleSXXActivateProxy))
 
 	log.F("[sxx] SXX API handlers registered")
 }
@@ -888,6 +898,101 @@ func handleRestartGlider(w http.ResponseWriter, r *http.Request) {
 		log.F("[sxx] Exiting Glider process for restart...")
 		os.Exit(0)
 	}()
+}
+
+// handleSXXActivateProxy 激活 SX 代理 (纯转发模式)
+func handleSXXActivateProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
+			Success: false,
+			Message: "Method not allowed, use POST",
+		})
+		return
+	}
+
+	var req ProxyActivateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeSXXResponse(w, http.StatusBadRequest, SXXAPIResponse{
+			Success: false,
+			Message: "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	log.F("[sxx] Forwarding activation request to: %s", req.URL)
+
+	// 创建 HTTP 请求 (直接使用传入的 body)
+	httpReq, err := http.NewRequest("POST", req.URL, bytes.NewBufferString(req.Body))
+	if err != nil {
+		log.F("[sxx] Failed to create HTTP request: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "创建请求失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 设置请求头 (使用传入的 headers)
+	for key, value := range req.Headers {
+		httpReq.Header.Set(key, value)
+	}
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		log.F("[sxx] Failed to send activation request: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "发送激活请求失败: " + err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.F("[sxx] Failed to read activation response: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "读取激活响应失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 解析响应
+	var activationResp map[string]interface{}
+	if err := json.Unmarshal(respBody, &activationResp); err != nil {
+		log.F("[sxx] Failed to parse activation response: %v, body: %s", err, string(respBody))
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "解析激活响应失败: " + err.Error(),
+			Data:    map[string]string{"rawResponse": string(respBody)},
+		})
+		return
+	}
+
+	// 检查激活结果
+	success, ok := activationResp["success"].(bool)
+	if !ok || !success {
+		// 激活失败,返回完整错误信息
+		log.F("[sxx] Activation failed: %v", activationResp)
+		writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+			Success: false,
+			Message: "激活失败",
+			Data:    activationResp,
+		})
+		return
+	}
+
+	// 激活成功
+	log.F("[sxx] Activation successful")
+	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+		Success: true,
+		Message: "激活成功",
+		Data:    activationResp,
+	})
 }
 
 // writeSXXResponse 写入 SXX API 响应
