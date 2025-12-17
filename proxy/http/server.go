@@ -139,6 +139,7 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 
 	startTime := time.Now()
 	var upBytes int64
+	var wg sync.WaitGroup
 
 	buf := pool.GetBytesBuffer()
 	defer pool.PutBytesBuffer(buf)
@@ -151,7 +152,9 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	}
 
 	// copy the left request bytes to remote server. eg. length specificed or chunked body.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if _, err := c.Reader().Peek(1); err == nil {
 			upBytes, _ = proxy.Copy(rc, c)
 			rc.SetDeadline(time.Now())
@@ -165,17 +168,20 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	tpr := textproto.NewReader(r)
 	line, err := tpr.ReadLine()
 	if err != nil {
+		wg.Wait()
 		return
 	}
 
 	proto, code, status, ok := parseStartLine(line)
 	if !ok {
+		wg.Wait()
 		return
 	}
 
 	header, err := tpr.ReadMIMEHeader()
 	if err != nil {
 		log.F("[http] read header error:%s", err)
+		wg.Wait()
 		return
 	}
 
@@ -189,6 +195,10 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	c.Write(buf.Bytes())
 
 	downBytes, _ := proxy.Copy(c, r)
+
+	// 等待上传 goroutine 完成，确保 upBytes 写入完成
+	wg.Wait()
+
 	duration := time.Since(startTime)
 
 	log.F("[http] %s <-> %s via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
