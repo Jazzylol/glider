@@ -22,6 +22,11 @@ var (
 )
 
 func main() {
+	// 设置流量统计回调函数并启动定期报告（每10分钟）
+	proxy.TrafficRecorder = RecordTraffic
+	StartPeriodicReport(10 * time.Minute)
+	log.F("[main] Traffic statistics enabled, reporting every 10 minutes")
+
 	// Check if multi-listener mode is enabled
 	if config.UseMultiListenerMode {
 		log.F("[main] Multi-listener mode enabled")
