@@ -90,22 +90,12 @@ func extractDomain(target string) string {
 	return host
 }
 
-// GetTop20 获取请求次数最多的 Top 20 域名
-func (m *TrafficStatsManager) GetTop20() []*DomainStats {
+// GetTop20ByRequests 获取请求次数最多的 Top 20 域名
+func (m *TrafficStatsManager) GetTop20ByRequests() []*DomainStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// 复制所有统计到切片
-	list := make([]*DomainStats, 0, len(m.stats))
-	for _, stat := range m.stats {
-		// 深拷贝，避免并发问题
-		list = append(list, &DomainStats{
-			Domain:        stat.Domain,
-			Requests:      stat.Requests,
-			UploadBytes:   stat.UploadBytes,
-			DownloadBytes: stat.DownloadBytes,
-		})
-	}
+	list := m.copyStats()
 
 	// 按请求次数降序排序
 	sort.Slice(list, func(i, j int) bool {
@@ -117,6 +107,41 @@ func (m *TrafficStatsManager) GetTop20() []*DomainStats {
 		list = list[:20]
 	}
 
+	return list
+}
+
+// GetTop20ByTraffic 获取总流量最大的 Top 20 域名
+func (m *TrafficStatsManager) GetTop20ByTraffic() []*DomainStats {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	list := m.copyStats()
+
+	// 按总流量降序排序
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].TotalBytes() > list[j].TotalBytes()
+	})
+
+	// 取前 20 个
+	if len(list) > 20 {
+		list = list[:20]
+	}
+
+	return list
+}
+
+// copyStats 复制所有统计到切片（需要在持有锁的情况下调用）
+func (m *TrafficStatsManager) copyStats() []*DomainStats {
+	list := make([]*DomainStats, 0, len(m.stats))
+	for _, stat := range m.stats {
+		// 深拷贝，避免并发问题
+		list = append(list, &DomainStats{
+			Domain:        stat.Domain,
+			Requests:      stat.Requests,
+			UploadBytes:   stat.UploadBytes,
+			DownloadBytes: stat.DownloadBytes,
+		})
+	}
 	return list
 }
 
@@ -134,7 +159,7 @@ func (m *TrafficStatsManager) GetTotalStats() (totalDomains int, totalRequests, 
 	return
 }
 
-// PrintTop20Table 打印 Top 20 表格
+// PrintTop20Table 打印 Top 20 表格（按请求次数和按流量两个表格）
 // 该函数保证不会 panic，出错只打印日志
 func (m *TrafficStatsManager) PrintTop20Table() {
 	defer func() {
@@ -143,7 +168,8 @@ func (m *TrafficStatsManager) PrintTop20Table() {
 		}
 	}()
 
-	top20 := m.GetTop20()
+	top20ByRequests := m.GetTop20ByRequests()
+	top20ByTraffic := m.GetTop20ByTraffic()
 	totalDomains, totalRequests, totalUp, totalDown := m.GetTotalStats()
 
 	now := time.Now()
@@ -152,52 +178,69 @@ func (m *TrafficStatsManager) PrintTop20Table() {
 	var sb strings.Builder
 
 	sb.WriteString("\n")
-	sb.WriteString("==================== Traffic Statistics (Top 20 by Requests) ====================\n")
-	sb.WriteString(fmt.Sprintf("Start Time: %s\n", m.startTime.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("Report Time: %s\n", now.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("Uptime: %s\n", formatDuration(now.Sub(m.startTime))))
-	sb.WriteString(fmt.Sprintf("Total Domains: %d\n", totalDomains))
+	sb.WriteString("══════════════════════════════════════════════════════════════════════════════════════════════════════\n")
+	sb.WriteString("                                      TRAFFIC STATISTICS REPORT                                       \n")
+	sb.WriteString("══════════════════════════════════════════════════════════════════════════════════════════════════════\n")
+	sb.WriteString(fmt.Sprintf("Start Time: %s    Report Time: %s    Uptime: %s    Total Domains: %d\n",
+		m.startTime.Format("2006-01-02 15:04:05"),
+		now.Format("2006-01-02 15:04:05"),
+		formatDuration(now.Sub(m.startTime)),
+		totalDomains))
 	sb.WriteString("\n")
 
-	if len(top20) == 0 {
-		sb.WriteString("No traffic data yet.\n")
-	} else {
-		// 表头
-		sb.WriteString(fmt.Sprintf("%-4s  %-40s  %10s  %12s  %12s  %12s\n",
-			"Rank", "Domain", "Requests", "Upload↑", "Download↓", "Total"))
-		sb.WriteString(strings.Repeat("─", 100) + "\n")
+	// ===== 按请求次数排序的表格 =====
+	sb.WriteString("┌─────────────────────────────────── Top 20 by Requests ───────────────────────────────────┐\n")
+	m.writeTable(&sb, top20ByRequests)
 
-		// 数据行
-		for i, stat := range top20 {
-			domain := stat.Domain
-			if len(domain) > 40 {
-				domain = domain[:37] + "..."
-			}
-			sb.WriteString(fmt.Sprintf("%4d  %-40s  %10s  %12s  %12s  %12s\n",
-				i+1,
-				domain,
-				formatNumber(stat.Requests),
-				formatBytes(stat.UploadBytes),
-				formatBytes(stat.DownloadBytes),
-				formatBytes(stat.TotalBytes()),
-			))
-		}
+	sb.WriteString("\n")
 
-		sb.WriteString(strings.Repeat("─", 100) + "\n")
-	}
+	// ===== 按流量排序的表格 =====
+	sb.WriteString("┌─────────────────────────────────── Top 20 by Traffic ────────────────────────────────────┐\n")
+	m.writeTable(&sb, top20ByTraffic)
 
 	// 汇总行
-	sb.WriteString(fmt.Sprintf("%-4s  %-40s  %10s  %12s  %12s  %12s\n",
-		"",
-		"Total (All Domains):",
+	sb.WriteString("\n")
+	sb.WriteString("══════════════════════════════════════════════════════════════════════════════════════════════════════\n")
+	sb.WriteString(fmt.Sprintf("  TOTAL (All %d Domains):  Requests: %s    Upload↑: %s    Download↓: %s    Total: %s\n",
+		totalDomains,
 		formatNumber(totalRequests),
 		formatBytes(totalUp),
 		formatBytes(totalDown),
 		formatBytes(totalUp+totalDown),
 	))
-	sb.WriteString("=================================================================================\n")
+	sb.WriteString("══════════════════════════════════════════════════════════════════════════════════════════════════════\n")
 
 	log.F("[traffic] %s", sb.String())
+}
+
+// writeTable 写入表格内容
+func (m *TrafficStatsManager) writeTable(sb *strings.Builder, stats []*DomainStats) {
+	if len(stats) == 0 {
+		sb.WriteString("  No traffic data yet.\n")
+		return
+	}
+
+	// 表头
+	sb.WriteString(fmt.Sprintf("│ %-4s  %-40s  %10s  %12s  %12s  %12s │\n",
+		"Rank", "Domain", "Requests", "Upload↑", "Download↓", "Total"))
+	sb.WriteString("├" + strings.Repeat("─", 98) + "┤\n")
+
+	// 数据行
+	for i, stat := range stats {
+		domain := stat.Domain
+		if len(domain) > 40 {
+			domain = domain[:37] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("│ %4d  %-40s  %10s  %12s  %12s  %12s │\n",
+			i+1,
+			domain,
+			formatNumber(stat.Requests),
+			formatBytes(stat.UploadBytes),
+			formatBytes(stat.DownloadBytes),
+			formatBytes(stat.TotalBytes()),
+		))
+	}
+	sb.WriteString("└" + strings.Repeat("─", 98) + "┘\n")
 }
 
 // StartPeriodicReport 启动定期报告
