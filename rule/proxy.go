@@ -159,3 +159,23 @@ func (p *Proxy) Check() {
 func (p *Proxy) GetMainGroup() *FwdrGroup {
 	return p.main
 }
+
+// AddDirectDomains 添加直连域名（灰名单），这些域名会绕过代理直接连接
+func (p *Proxy) AddDirectDomains(domains []string) {
+	if len(domains) == 0 {
+		return
+	}
+
+	direct, _ := p.domainMap.Load("direct")
+	if direct == nil {
+		return
+	}
+
+	for _, domain := range domains {
+		domain = strings.ToLower(strings.TrimSpace(domain))
+		if domain != "" {
+			p.domainMap.Store(domain, direct)
+			log.F("[rule] added direct domain: %s", domain)
+		}
+	}
+}

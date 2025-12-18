@@ -46,6 +46,12 @@ func runTraditionalMode() {
 	// global rule proxy
 	pxy := rule.NewProxy(config.Forwards, &config.Strategy, config.rules)
 
+	// add direct domains (graylist)
+	if len(config.DirectDomains) > 0 {
+		pxy.AddDirectDomains(config.DirectDomains)
+		log.F("[main] Added %d direct domain(s) to graylist", len(config.DirectDomains))
+	}
+
 	// setup API manager for API strategy mode
 	if config.ServerPort != "" {
 		// 设置全局API管理器
@@ -196,6 +202,11 @@ func runMultiListenerMode() {
 
 		// Create dedicated proxy for this listener group
 		groupProxy := rule.NewProxy(group.Forwards, &group.Strategy, nil)
+
+		// add direct domains (graylist) for this group
+		if len(config.DirectDomains) > 0 {
+			groupProxy.AddDirectDomains(config.DirectDomains)
+		}
 		
 		// Enable checkers for this group
 		groupProxy.Check()

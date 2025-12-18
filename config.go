@@ -58,6 +58,9 @@ type Config struct {
 	// SXX Proxy configuration
 	SXXHost string // SXX API服务器地址
 	SXXKey  string // SXX API鉴权密钥
+
+	// Direct domains (graylist) - domains that should bypass proxy and connect directly
+	DirectDomains []string
 }
 
 func parseConfig() *Config {
@@ -121,6 +124,9 @@ check=disable: disable health check`)
 	// SXX Proxy configs
 	flag.StringVar(&conf.SXXHost, "sxxhost", "", "SXX Proxy API server address")
 	flag.StringVar(&conf.SXXKey, "sxxkey", "", "SXX Proxy API authentication key")
+
+	// Direct domains (graylist)
+	flag.StringSliceUniqVar(&conf.DirectDomains, "direct-domain", nil, "domain that should bypass proxy and connect directly (graylist)")
 
 	// Multi-listener mode: pre-register listener1-100, forward1-100 parameters
 	// This allows conflag to recognize these parameters
