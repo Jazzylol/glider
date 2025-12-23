@@ -12,6 +12,7 @@ import (
 	"github.com/nadoo/glider/ipset"
 	"github.com/nadoo/glider/pkg/log"
 	"github.com/nadoo/glider/proxy"
+	"github.com/nadoo/glider/proxy/http"
 	"github.com/nadoo/glider/rule"
 	"github.com/nadoo/glider/service"
 )
@@ -63,6 +64,9 @@ func runTraditionalMode() {
 			log.F("[main] SXX API initialization failed: %v", err)
 			log.F("[main] SXX Proxy features will be disabled")
 		}
+
+		// 注入 GetSxxAuthKey 到 http 包（供动态代理模式使用）
+		http.GetSxxAuthKey = GetSxxAuthKey
 
 		// 启动API服务器
 		StartAPIServer(config.ServerPort)
@@ -156,6 +160,9 @@ func runMultiListenerMode() {
 			log.F("[main] SXX API initialization failed: %v", err)
 			log.F("[main] SXX Proxy features will be disabled")
 		}
+
+		// 注入 GetSxxAuthKey 到 http 包（供动态代理模式使用）
+		http.GetSxxAuthKey = GetSxxAuthKey
 
 		// 启动API服务器
 		StartAPIServer(config.ServerPort)

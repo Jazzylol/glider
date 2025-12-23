@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nadoo/glider/pkg/log"
@@ -141,6 +142,11 @@ func InitSXXAPI(sxxHost, sxxKey string) error {
 	}
 
 	return nil
+}
+
+// GetSxxAuthKey 返回 SXX 认证密钥（供 HTTP 动态代理模式使用）
+func GetSxxAuthKey() string {
+	return sxxAuthKey
 }
 
 // RegisterSXXAPIHandlers 注册 SXX API 路由
@@ -1075,7 +1081,18 @@ func handlePoolFetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.F("[sxx] pool/fetch success, got %d bytes", len(body))
+	// 统计代理数量
+	lines := strings.Split(string(body), "\n")
+	validCount := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			validCount++
+		}
+	}
+
+	log.F("[sxx] pool/fetch success, got %d bytes, %d proxies", len(body), validCount)
+	log.F("[sxx] pool/fetch response content:\n%s", string(body))
 
 	// 返回纯文本
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")

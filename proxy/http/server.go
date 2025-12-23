@@ -78,9 +78,18 @@ func (s *HTTP) Serve(cc net.Conn) {
 }
 
 func (s *HTTP) servRequest(req *request, c *proxy.Conn) {
-	// Auth
+	// 提取认证信息
+	user, pass, hasAuth := extractUserPass(req.auth)
+
+	// 检查是否为动态代理模式（端口 10800 + 密码等于 sxxkey）
+	if hasAuth && isDynamicProxyMode(s.addr, pass) {
+		s.servDynamic(req, c, user)
+		return
+	}
+
+	// 原有认证逻辑
 	if s.user != "" && s.password != "" {
-		if user, pass, ok := extractUserPass(req.auth); !ok || user != s.user || pass != s.password {
+		if !hasAuth || user != s.user || pass != s.password {
 			io.WriteString(c, "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n")
 			log.F("[http] auth failed from %s, auth info: %s:%s", c.RemoteAddr(), user, pass)
 			return
