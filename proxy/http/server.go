@@ -133,8 +133,8 @@ func (s *HTTP) servHTTPS(r *request, c net.Conn) {
 			c.RemoteAddr(), r.uri, dialer.Addr(), duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 
-	// 记录流量统计
-	proxy.RecordTraffic(r.uri, upBytes, downBytes)
+	// 异步记录流量统计（不阻塞主流程）
+	go safeRecordTraffic(r.uri, upBytes, downBytes)
 }
 
 func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
@@ -213,8 +213,8 @@ func (s *HTTP) servHTTP(req *request, c *proxy.Conn) {
 	log.F("[http] %s <-> %s via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
 		c.RemoteAddr(), req.target, dialer.Addr(), duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 
-	// 记录流量统计
-	proxy.RecordTraffic(req.target, upBytes, downBytes)
+	// 异步记录流量统计（不阻塞主流程）
+	go safeRecordTraffic(req.target, upBytes, downBytes)
 }
 
 // relayWithStats relays between left and right and returns bytes transferred.

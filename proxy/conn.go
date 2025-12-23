@@ -53,30 +53,37 @@ func (c *Conn) Close() error {
 
 // Relay relays between left and right.
 func Relay(left, right net.Conn) error {
-	var err, err1 error
+	_, _, err := RelayWithStats(left, right)
+	return err
+}
+
+// RelayWithStats relays between left and right and returns bytes transferred.
+// Returns: upBytes (left->right), downBytes (right->left), error
+func RelayWithStats(left, right net.Conn) (upBytes, downBytes int64, err error) {
+	var err1 error
 	var wg sync.WaitGroup
 	var wait = 5 * time.Second
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err1 = Copy(right, left)
+		downBytes, err1 = Copy(right, left)
 		right.SetReadDeadline(time.Now().Add(wait)) // unblock read on right
 	}()
 
-	_, err = Copy(left, right)
+	upBytes, err = Copy(left, right)
 	left.SetReadDeadline(time.Now().Add(wait)) // unblock read on left
 	wg.Wait()
 
 	if err1 != nil && !errors.Is(err1, os.ErrDeadlineExceeded) {
-		return err1
+		return upBytes, downBytes, err1
 	}
 
 	if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
-		return err
+		return upBytes, downBytes, err
 	}
 
-	return nil
+	return upBytes, downBytes, nil
 }
 
 // Copy copies from src to dst.

@@ -98,7 +98,17 @@ func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
 			c.RemoteAddr(), target, proxyURL, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 
-	// 记录流量统计
+	// 异步记录流量统计（不阻塞主流程）
+	go safeRecordTraffic(target, upBytes, downBytes)
+}
+
+// safeRecordTraffic 安全地记录流量，捕获任何 panic
+func safeRecordTraffic(target string, upBytes, downBytes int64) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.F("[traffic] RecordTraffic panic recovered: %v", r)
+		}
+	}()
 	proxy.RecordTraffic(target, upBytes, downBytes)
 }
 
