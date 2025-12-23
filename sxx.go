@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/nadoo/glider/pkg/log"
 	"github.com/nadoo/glider/proxy/sxx"
@@ -172,6 +174,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 
 	// 激活 SX 代理 (应用 Promo Code)
 	mux.HandleFunc("/api/sxxproxy/activate", authenticateSXX(handleSXXActivateProxy))
+
+	// 代理池获取接口
+	mux.HandleFunc("/api/pool/fetch", authenticateSXX(handlePoolFetch))
 
 	log.F("[sxx] SXX API handlers registered")
 }
@@ -1003,4 +1008,77 @@ func writeSXXResponse(w http.ResponseWriter, status int, response SXXAPIResponse
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.F("[sxx] failed to encode response: %v", err)
 	}
+}
+
+// handlePoolFetch 处理代理池获取请求
+// GET /api/pool/fetch?url={base64EncodedPoolLink}
+// url 参数为 Base64 编码的代理池链接，避免 URL 格式问题
+// 返回纯文本格式的代理列表（一行一个）
+func handlePoolFetch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed, use GET", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取 URL 参数（Base64 编码的）
+	urlBase64 := r.URL.Query().Get("url")
+	if urlBase64 == "" {
+		http.Error(w, "Missing 'url' parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Base64 解码获取真实的 poolURL
+	poolURLBytes, err := base64.StdEncoding.DecodeString(urlBase64)
+	if err != nil {
+		log.F("[sxx] pool/fetch failed to decode base64 url: %v", err)
+		http.Error(w, "Failed to decode base64 url: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	poolURL := string(poolURLBytes)
+
+	log.F("[sxx] pool/fetch requesting: %s", poolURL)
+
+	// 创建 HTTP 客户端请求代理池 URL
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := http.NewRequest("GET", poolURL, nil)
+	if err != nil {
+		log.F("[sxx] pool/fetch failed to create request: %v", err)
+		http.Error(w, "Failed to create request: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 设置 User-Agent
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.F("[sxx] pool/fetch failed to fetch URL: %v", err)
+		http.Error(w, "Failed to fetch URL: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.F("[sxx] pool/fetch URL returned status: %d", resp.StatusCode)
+		http.Error(w, "URL returned non-200 status: "+resp.Status, http.StatusBadGateway)
+		return
+	}
+
+	// 读取响应内容
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.F("[sxx] pool/fetch failed to read response: %v", err)
+		http.Error(w, "Failed to read response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.F("[sxx] pool/fetch success, got %d bytes", len(body))
+
+	// 返回纯文本
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
