@@ -156,8 +156,8 @@ func (s *Socks5) isDynamicProxyMode(password string) bool {
 
 // serveDynamic 处理动态代理请求
 func (s *Socks5) serveDynamic(c net.Conn, target, base64User string) {
-	// Base64 解码
-	decoded, err := base64.StdEncoding.DecodeString(base64User)
+	// Base64 URL Safe 无填充解码
+	decoded, err := base64.RawURLEncoding.DecodeString(base64User)
 	if err != nil {
 		log.F("[socks5-dynamic] decode error: %v", err)
 		return

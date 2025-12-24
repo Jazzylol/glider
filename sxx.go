@@ -1034,7 +1034,7 @@ func handlePoolFetch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Base64 解码获取真实的 poolURL
-	poolURLBytes, err := base64.StdEncoding.DecodeString(urlBase64)
+	poolURLBytes, err := base64.RawURLEncoding.DecodeString(urlBase64)
 	if err != nil {
 		log.F("[sxx] pool/fetch failed to decode base64 url: %v", err)
 		http.Error(w, "Failed to decode base64 url: "+err.Error(), http.StatusBadRequest)

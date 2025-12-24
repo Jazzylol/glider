@@ -29,10 +29,10 @@ func isDynamicProxyMode(serverAddr, password string) bool {
 }
 
 // servDynamic 处理动态代理请求
-// base64User 是 Base64 编码的真实代理 URL
+// base64User 是 Base64 URL Safe 无填充编码的真实代理 URL
 func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
-	// Base64 解码
-	decoded, err := base64.StdEncoding.DecodeString(base64User)
+	// Base64 URL Safe 无填充解码
+	decoded, err := base64.RawURLEncoding.DecodeString(base64User)
 	if err != nil {
 		io.WriteString(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
 		log.F("[http-dynamic] decode error: %v", err)
