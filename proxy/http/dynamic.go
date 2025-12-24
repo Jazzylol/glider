@@ -52,7 +52,7 @@ func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
 	dialer, err := proxy.DialerFromURL(proxyURL, defaultDialer)
 	if err != nil {
 		io.WriteString(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
-		log.F("[http-dynamic] create dialer error for %s: %v", base64User, err)
+		log.F("[http-dynamic] create dialer error, base64=%s raw=%s err=%v", base64User, proxyURL, err)
 		return
 	}
 
@@ -66,7 +66,7 @@ func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
 	rc, err := dialer.Dial("tcp", target)
 	if err != nil {
 		io.WriteString(c, req.proto+" 502 ERROR\r\n\r\n")
-		log.F("[http-dynamic] %s <-> %s via %s, dial error: %v", c.RemoteAddr(), target, base64User, err)
+		log.F("[http-dynamic] %s <-> %s, dial error, base64=%s raw=%s err=%v", c.RemoteAddr(), target, base64User, proxyURL, err)
 		return
 	}
 	defer rc.Close()
@@ -84,18 +84,18 @@ func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
 		rc.Write(buf.Bytes())
 	}
 
-	log.F("[http-dynamic] %s <-> %s via %s", c.RemoteAddr(), target, base64User)
+	log.F("[http-dynamic] %s <-> %s, base64=%s raw=%s", c.RemoteAddr(), target, base64User, proxyURL)
 
 	// 双向转发并统计流量
 	upBytes, downBytes, err := s.relayWithStats(c, rc)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		log.F("[http-dynamic] %s <-> %s via %s, relay error: %v, duration: %.2fs, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), target, base64User, err, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
+		log.F("[http-dynamic] %s <-> %s, relay error, base64=%s raw=%s err=%v, duration=%.2fs, up=%.2fKB, down=%.2fKB",
+			c.RemoteAddr(), target, base64User, proxyURL, err, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	} else {
-		log.F("[http-dynamic] %s <-> %s via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), target, base64User, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
+		log.F("[http-dynamic] %s <-> %s, base64=%s raw=%s, duration=%.2fs, up=%.2fKB, down=%.2fKB",
+			c.RemoteAddr(), target, base64User, proxyURL, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 
 	// 异步记录流量统计（不阻塞主流程）
