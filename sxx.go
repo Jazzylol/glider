@@ -182,7 +182,7 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/sxxproxy/activate", authenticateSXX(handleSXXActivateProxy))
 
 	// 代理池获取接口
-	mux.HandleFunc("/api/pool/fetch", authenticateSXX(handlePoolFetch))
+	mux.HandleFunc("/api/sxxproxy/poolFetch", authenticateSXX(handlePoolFetch))
 
 	// 获取总消耗流量
 	mux.HandleFunc("/api/sxxproxy/totalSpentTraffic", authenticateSXX(handleSXXGetTotalSpentTraffic))
