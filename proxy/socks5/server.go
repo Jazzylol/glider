@@ -174,20 +174,20 @@ func (s *Socks5) serveDynamic(c net.Conn, target, base64User string) {
 	// 创建动态 Dialer
 	dialer, err := proxy.DialerFromURL(proxyURL, defaultDialer)
 	if err != nil {
-		log.F("[socks5-dynamic] create dialer error for %s: %v", proxyURL, err)
+		log.F("[socks5-dynamic] create dialer error for %s: %v", base64User, err)
 		return
 	}
 
 	// 建立连接
 	rc, err := dialer.Dial("tcp", target)
 	if err != nil {
-		log.F("[socks5-dynamic] %s <-> %s via %s, dial error: %v", c.RemoteAddr(), target, proxyURL, err)
+		log.F("[socks5-dynamic] %s <-> %s via %s, dial error: %v", c.RemoteAddr(), target, base64User, err)
 		return
 	}
 	defer rc.Close()
 
 	startTime := time.Now()
-	log.F("[socks5-dynamic] %s <-> %s via %s", c.RemoteAddr(), target, proxyURL)
+	log.F("[socks5-dynamic] %s <-> %s via %s", c.RemoteAddr(), target, base64User)
 
 	// 双向转发并统计流量
 	upBytes, downBytes, err := proxy.RelayWithStats(c, rc)
@@ -195,10 +195,10 @@ func (s *Socks5) serveDynamic(c net.Conn, target, base64User string) {
 
 	if err != nil {
 		log.F("[socks5-dynamic] %s <-> %s via %s, relay error: %v, duration: %.2fs, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), target, proxyURL, err, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
+			c.RemoteAddr(), target, base64User, err, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	} else {
 		log.F("[socks5-dynamic] %s <-> %s via %s, duration: %.2fs, up: %.2f KB, down: %.2f KB",
-			c.RemoteAddr(), target, proxyURL, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
+			c.RemoteAddr(), target, base64User, duration.Seconds(), float64(upBytes)/1024, float64(downBytes)/1024)
 	}
 
 	// 异步记录流量统计（不阻塞主流程）
