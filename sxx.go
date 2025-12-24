@@ -112,7 +112,7 @@ type ProxyActivateRequest struct {
 }
 
 var (
-	sxxClient  *sxx.SXProxyClient
+	sxxClient  *sxx.SXXProxyClient
 	sxxAuthKey string // SXX API鉴权密钥
 )
 
@@ -126,7 +126,7 @@ func InitSXXAPI(sxxHost, sxxKey string) error {
 	}
 
 	// 创建客户端
-	sxxClient = sxx.NewSXProxyClientWithHost(sxxHost)
+	sxxClient = sxx.NewSXXProxyClientWithHost(sxxHost)
 	if sxxClient == nil {
 		return fmt.Errorf("failed to create SXX client with host: %s", sxxHost)
 	}
@@ -183,6 +183,9 @@ func RegisterSXXAPIHandlers(mux *http.ServeMux) {
 
 	// 代理池获取接口
 	mux.HandleFunc("/api/pool/fetch", authenticateSXX(handlePoolFetch))
+
+	// 获取总消耗流量
+	mux.HandleFunc("/api/sxxproxy/totalSpentTraffic", authenticateSXX(handleSXXGetTotalSpentTraffic))
 
 	log.F("[sxx] SXX API handlers registered")
 }
@@ -627,6 +630,67 @@ func handleSXXGetPlanInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// TotalSpentTrafficRequest 获取总消耗流量请求
+type TotalSpentTrafficRequest struct {
+	APIKey string `json:"apiKey"`
+}
+
+// handleSXXGetTotalSpentTraffic 获取总消耗流量
+func handleSXXGetTotalSpentTraffic(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		writeSXXResponse(w, http.StatusMethodNotAllowed, SXXAPIResponse{
+			Success: false,
+			Message: "Method not allowed, use POST or GET",
+		})
+		return
+	}
+
+	var req TotalSpentTrafficRequest
+
+	// 支持 POST 和 GET 两种方式
+	if r.Method == http.MethodPost {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeSXXResponse(w, http.StatusBadRequest, SXXAPIResponse{
+				Success: false,
+				Message: "Invalid request body: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		// GET 方式从查询参数获取
+		req.APIKey = r.URL.Query().Get("apiKey")
+	}
+
+	if req.APIKey == "" {
+		writeSXXResponse(w, http.StatusBadRequest, SXXAPIResponse{
+			Success: false,
+			Message: "API Key不能为空",
+		})
+		return
+	}
+
+	// 调用 SXX 客户端获取总消耗流量
+	response, err := sxxClient.GetTotalSpentTraffic(req.APIKey)
+	if err != nil {
+		log.F("[sxx] GetTotalSpentTraffic error: %v", err)
+		writeSXXResponse(w, http.StatusInternalServerError, SXXAPIResponse{
+			Success: false,
+			Message: "获取总消耗流量失败: " + err.Error(),
+		})
+		return
+	}
+
+	log.F("[sxx] GetTotalSpentTraffic success: totalSpentTraffic=%d", response.TotalSpentTraffic)
+
+	writeSXXResponse(w, http.StatusOK, SXXAPIResponse{
+		Success: true,
+		Message: "获取总消耗流量成功",
+		Data: map[string]int64{
+			"totalSpentTraffic": response.TotalSpentTraffic,
+		},
+	})
+}
+
 // convertToCommonProxy 转换 SXX 代理信息为通用格式
 func convertToCommonProxy(proxy sxx.ProxyInfo) CommonProxyInfo {
 	// 解析 proxy 字段获取 host 和 port (格式: "89.38.99.242:9999")
@@ -740,10 +804,10 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.F("[sxx] Update glider config request: %d listeners", len(req.Listeners))
-	
+
 	// 调试日志：打印每个 listener 的详细信息
 	for i, listener := range req.Listeners {
-		log.F("[sxx] Listener %d: index=%d, listen=%s, forward=%s, ipAllow=%s", 
+		log.F("[sxx] Listener %d: index=%d, listen=%s, forward=%s, ipAllow=%s",
 			i, listener.Index, listener.Listen, listener.Forward, listener.IPAllow)
 	}
 
@@ -778,24 +842,24 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 	// 解析现有配置，保留非listener配置
 	lines := bytes.Split(content, []byte("\n"))
 	var newLines []string
-	
+
 	// 保留非listener配置的行
 	for _, line := range lines {
 		lineStr := string(bytes.TrimSpace(line))
-		
+
 		// 跳过空行
 		if lineStr == "" {
 			continue
 		}
-		
+
 		// 检查是否是listener相关配置
 		isListenerConfig := false
-		
+
 		// 使用更高效的方式检查配置前缀
 		listenerPrefixes := []string{
 			"listen", "forward", "strategy", "check", "checkinterval", "ipallow",
 		}
-		
+
 		for _, prefix := range listenerPrefixes {
 			// 检查是否以 prefix 开头，后面跟数字和等号
 			if len(lineStr) > len(prefix) {
@@ -803,7 +867,7 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 				remaining := lineStr[len(prefix):]
 				hasDigit := false
 				equalPos := -1
-				
+
 				for i, ch := range remaining {
 					if ch >= '0' && ch <= '9' {
 						hasDigit = true
@@ -814,14 +878,14 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 				}
-				
+
 				if equalPos >= 0 {
 					isListenerConfig = true
 					break
 				}
 			}
 		}
-		
+
 		if !isListenerConfig {
 			newLines = append(newLines, lineStr)
 		}
@@ -832,19 +896,19 @@ func handleUpdateGliderConfig(w http.ResponseWriter, r *http.Request) {
 		newLines = append(newLines, "")
 		newLines = append(newLines, fmt.Sprintf("listen%d=%s", listener.Index, listener.Listen))
 		newLines = append(newLines, fmt.Sprintf("forward%d=%s", listener.Index, listener.Forward))
-		
+
 		if listener.Strategy != "" {
 			newLines = append(newLines, fmt.Sprintf("strategy%d=%s", listener.Index, listener.Strategy))
 		}
-		
+
 		if listener.Check != "" {
 			newLines = append(newLines, fmt.Sprintf("check%d=%s", listener.Index, listener.Check))
 		}
-		
+
 		if listener.CheckInterval > 0 {
 			newLines = append(newLines, fmt.Sprintf("checkinterval%d=%d", listener.Index, listener.CheckInterval))
 		}
-		
+
 		if listener.IPAllow != "" {
 			ipAllowLine := fmt.Sprintf("ipallow%d=%s", listener.Index, listener.IPAllow)
 			newLines = append(newLines, ipAllowLine)

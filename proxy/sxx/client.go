@@ -14,19 +14,19 @@ import (
 	"github.com/nadoo/glider/pkg/log"
 )
 
-// SXProxyClient SX Proxy API客户端
+// SXXProxyClient SX Proxy API客户端
 // 封装对SX Proxy API的调用
-type SXProxyClient struct {
+type SXXProxyClient struct {
 	BaseURL string
 	Client  *http.Client
 }
 
 // 如果 baseURL 为空，返回 nil
-func NewSXProxyClientWithHost(baseURL string) *SXProxyClient {
+func NewSXXProxyClientWithHost(baseURL string) *SXXProxyClient {
 	if baseURL == "" {
 		return nil
 	}
-	return &SXProxyClient{
+	return &SXXProxyClient{
 		BaseURL: baseURL,
 		Client: &http.Client{
 			Timeout: 30 * time.Second,
@@ -37,7 +37,7 @@ func NewSXProxyClientWithHost(baseURL string) *SXProxyClient {
 // ============= 内部辅助方法 =============
 
 // doRequest 执行HTTP请求并返回响应体
-func (c *SXProxyClient) doRequest(method, url string, body io.Reader, headers map[string]string) ([]byte, error) {
+func (c *SXXProxyClient) doRequest(method, url string, body io.Reader, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)
@@ -65,13 +65,13 @@ func (c *SXProxyClient) doRequest(method, url string, body io.Reader, headers ma
 }
 
 // doGet 执行GET请求
-func (c *SXProxyClient) doGet(endpoint string, params url.Values) ([]byte, error) {
+func (c *SXXProxyClient) doGet(endpoint string, params url.Values) ([]byte, error) {
 	requestURL := fmt.Sprintf("%s%s?%s", c.BaseURL, endpoint, params.Encode())
 	return c.doRequest("GET", requestURL, nil, nil)
 }
 
 // doPost 执行POST请求（JSON）
-func (c *SXProxyClient) doPost(endpoint string, params url.Values, body interface{}) ([]byte, error) {
+func (c *SXXProxyClient) doPost(endpoint string, params url.Values, body interface{}) ([]byte, error) {
 	requestURL := fmt.Sprintf("%s%s?%s", c.BaseURL, endpoint, params.Encode())
 
 	jsonData, err := json.Marshal(body)
@@ -87,7 +87,7 @@ func (c *SXProxyClient) doPost(endpoint string, params url.Values, body interfac
 }
 
 // doDelete 执行DELETE请求
-func (c *SXProxyClient) doDelete(endpoint string, params url.Values) ([]byte, error) {
+func (c *SXXProxyClient) doDelete(endpoint string, params url.Values) ([]byte, error) {
 	requestURL := fmt.Sprintf("%s%s?%s", c.BaseURL, endpoint, params.Encode())
 	return c.doRequest("DELETE", requestURL, nil, nil)
 }
@@ -118,7 +118,7 @@ func checkSuccess(resp Response) error {
 
 // GetPortList 获取端口列表
 // GET /v2/proxy/ports?apiKey={apiKey}&page={page}&per_page={per_page}
-func (c *SXProxyClient) GetPortList(req PortListRequest) (*ProxyListResponse, error) {
+func (c *SXXProxyClient) GetPortList(req PortListRequest) (*ProxyListResponse, error) {
 	if req.APIKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -165,16 +165,16 @@ func (c *SXProxyClient) GetPortList(req PortListRequest) (*ProxyListResponse, er
 	// 发送请求
 	body, err := c.doGet("/v2/proxy/ports", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetPortList error: %v", err)
+		log.F("[SXXProxyClient] GetPortList error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetPortList response: %s", string(body))
+	log.F("[SXXProxyClient] GetPortList response: %s", string(body))
 
 	// 解析响应
 	var result ProxyListResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetPortList parse error: %v", err)
+		log.F("[SXXProxyClient] GetPortList parse error: %v", err)
 		return nil, err
 	}
 
@@ -186,7 +186,7 @@ func (c *SXProxyClient) GetPortList(req PortListRequest) (*ProxyListResponse, er
 }
 
 // GetAllPorts 获取所有端口列表（无筛选条件）
-func (c *SXProxyClient) GetAllPorts(apiKey string) (*ProxyListResponse, error) {
+func (c *SXXProxyClient) GetAllPorts(apiKey string) (*ProxyListResponse, error) {
 	return c.GetPortList(PortListRequest{
 		APIKey:  apiKey,
 		Page:    1,
@@ -195,7 +195,7 @@ func (c *SXProxyClient) GetAllPorts(apiKey string) (*ProxyListResponse, error) {
 }
 
 // GetPortByID 根据ID获取特定端口
-func (c *SXProxyClient) GetPortByID(apiKey string, id int) (*ProxyListResponse, error) {
+func (c *SXXProxyClient) GetPortByID(apiKey string, id int) (*ProxyListResponse, error) {
 	return c.GetPortList(PortListRequest{
 		APIKey:  apiKey,
 		Page:    1,
@@ -206,7 +206,7 @@ func (c *SXProxyClient) GetPortByID(apiKey string, id int) (*ProxyListResponse, 
 
 // GetCountries 获取国家列表
 // GET /v2/dir/countries?apiKey={apiKey}
-func (c *SXProxyClient) GetCountries(apiKey string) (*CountryListResponse, error) {
+func (c *SXXProxyClient) GetCountries(apiKey string) (*CountryListResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -216,15 +216,15 @@ func (c *SXProxyClient) GetCountries(apiKey string) (*CountryListResponse, error
 
 	body, err := c.doGet("/v2/dir/countries", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetCountries error: %v", err)
+		log.F("[SXXProxyClient] GetCountries error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetCountries response: %s", string(body))
+	log.F("[SXXProxyClient] GetCountries response: %s", string(body))
 
 	var result CountryListResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetCountries parse error: %v", err)
+		log.F("[SXXProxyClient] GetCountries parse error: %v", err)
 		return nil, err
 	}
 
@@ -237,7 +237,7 @@ func (c *SXProxyClient) GetCountries(apiKey string) (*CountryListResponse, error
 
 // GetStates 获取州/省列表
 // GET /v2/dir/states?apiKey={apiKey}&countryId={countryId}
-func (c *SXProxyClient) GetStates(apiKey string, countryID int) (*StateListResponse, error) {
+func (c *SXXProxyClient) GetStates(apiKey string, countryID int) (*StateListResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -251,15 +251,15 @@ func (c *SXProxyClient) GetStates(apiKey string, countryID int) (*StateListRespo
 
 	body, err := c.doGet("/v2/dir/states", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetStates error: %v", err)
+		log.F("[SXXProxyClient] GetStates error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetStates response: %s", string(body))
+	log.F("[SXXProxyClient] GetStates response: %s", string(body))
 
 	var result StateListResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetStates parse error: %v", err)
+		log.F("[SXXProxyClient] GetStates parse error: %v", err)
 		return nil, err
 	}
 
@@ -272,7 +272,7 @@ func (c *SXProxyClient) GetStates(apiKey string, countryID int) (*StateListRespo
 
 // GetCities 获取城市列表
 // GET /v2/dir/cities?apiKey={apiKey}&countryId={countryId}&stateId={stateId}
-func (c *SXProxyClient) GetCities(apiKey string, countryID, stateID int) (*CityListResponse, error) {
+func (c *SXXProxyClient) GetCities(apiKey string, countryID, stateID int) (*CityListResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -290,15 +290,15 @@ func (c *SXProxyClient) GetCities(apiKey string, countryID, stateID int) (*CityL
 
 	body, err := c.doGet("/v2/dir/cities", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetCities error: %v", err)
+		log.F("[SXXProxyClient] GetCities error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetCities response: %s", string(body))
+	log.F("[SXXProxyClient] GetCities response: %s", string(body))
 
 	var result CityListResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetCities parse error: %v", err)
+		log.F("[SXXProxyClient] GetCities parse error: %v", err)
 		return nil, err
 	}
 
@@ -311,7 +311,7 @@ func (c *SXProxyClient) GetCities(apiKey string, countryID, stateID int) (*CityL
 
 // GetASNs 获取ASN列表
 // GET /v2/dir/asns?apiKey={apiKey}&countryId={countryId}&stateId={stateId}&cityId={cityId}
-func (c *SXProxyClient) GetASNs(apiKey string, countryID, stateID, cityID int) (*ASNListResponse, error) {
+func (c *SXXProxyClient) GetASNs(apiKey string, countryID, stateID, cityID int) (*ASNListResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -333,15 +333,15 @@ func (c *SXProxyClient) GetASNs(apiKey string, countryID, stateID, cityID int) (
 
 	body, err := c.doGet("/v2/dir/asns", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetASNs error: %v", err)
+		log.F("[SXXProxyClient] GetASNs error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetASNs response: %s", string(body))
+	log.F("[SXXProxyClient] GetASNs response: %s", string(body))
 
 	var result ASNListResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetASNs parse error: %v", err)
+		log.F("[SXXProxyClient] GetASNs parse error: %v", err)
 		return nil, err
 	}
 
@@ -354,7 +354,7 @@ func (c *SXProxyClient) GetASNs(apiKey string, countryID, stateID, cityID int) (
 
 // CreateProxy 创建代理
 // POST /v2/proxy/create-port?apiKey={apiKey}
-func (c *SXProxyClient) CreateProxy(apiKey string, req CreateProxyRequest) error {
+func (c *SXXProxyClient) CreateProxy(apiKey string, req CreateProxyRequest) error {
 	if apiKey == "" {
 		return fmt.Errorf("API Key不能为空")
 	}
@@ -370,15 +370,15 @@ func (c *SXProxyClient) CreateProxy(apiKey string, req CreateProxyRequest) error
 
 	body, err := c.doPost("/v2/proxy/create-port", params, req)
 	if err != nil {
-		log.F("[SXProxyClient] CreateProxy error: %v", err)
+		log.F("[SXXProxyClient] CreateProxy error: %v", err)
 		return err
 	}
 
-	log.F("[SXProxyClient] CreateProxy response: %s", string(body))
+	log.F("[SXXProxyClient] CreateProxy response: %s", string(body))
 
 	var result Response
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] CreateProxy parse error: %v", err)
+		log.F("[SXXProxyClient] CreateProxy parse error: %v", err)
 		return err
 	}
 
@@ -387,7 +387,7 @@ func (c *SXProxyClient) CreateProxy(apiKey string, req CreateProxyRequest) error
 
 // DeleteProxy 删除代理
 // DELETE /v2/proxy/delete-port?apiKey={apiKey}&id={proxyId}
-func (c *SXProxyClient) DeleteProxy(apiKey, proxyID string) error {
+func (c *SXXProxyClient) DeleteProxy(apiKey, proxyID string) error {
 	if apiKey == "" {
 		return fmt.Errorf("API Key不能为空")
 	}
@@ -401,15 +401,15 @@ func (c *SXProxyClient) DeleteProxy(apiKey, proxyID string) error {
 
 	body, err := c.doDelete("/v2/proxy/delete-port", params)
 	if err != nil {
-		log.F("[SXProxyClient] DeleteProxy error: %v", err)
+		log.F("[SXXProxyClient] DeleteProxy error: %v", err)
 		return err
 	}
 
-	log.F("[SXProxyClient] DeleteProxy response: %s", string(body))
+	log.F("[SXXProxyClient] DeleteProxy response: %s", string(body))
 
 	var result Response
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] DeleteProxy parse error: %v", err)
+		log.F("[SXXProxyClient] DeleteProxy parse error: %v", err)
 		return err
 	}
 
@@ -418,7 +418,7 @@ func (c *SXProxyClient) DeleteProxy(apiKey, proxyID string) error {
 
 // RefreshProxy 刷新代理
 // GET /v2/proxy/refresh/{portId}?apiKey={apiKey}
-func (c *SXProxyClient) RefreshProxy(apiKey, proxyID string) error {
+func (c *SXXProxyClient) RefreshProxy(apiKey, proxyID string) error {
 	if apiKey == "" {
 		return fmt.Errorf("API Key不能为空")
 	}
@@ -432,15 +432,15 @@ func (c *SXProxyClient) RefreshProxy(apiKey, proxyID string) error {
 	endpoint := fmt.Sprintf("/v2/proxy/refresh/%s", proxyID)
 	body, err := c.doGet(endpoint, params)
 	if err != nil {
-		log.F("[SXProxyClient] RefreshProxy error: %v", err)
+		log.F("[SXXProxyClient] RefreshProxy error: %v", err)
 		return err
 	}
 
-	log.F("[SXProxyClient] RefreshProxy response: %s", string(body))
+	log.F("[SXXProxyClient] RefreshProxy response: %s", string(body))
 
 	var result Response
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] RefreshProxy parse error: %v", err)
+		log.F("[SXXProxyClient] RefreshProxy parse error: %v", err)
 		return err
 	}
 
@@ -449,7 +449,7 @@ func (c *SXProxyClient) RefreshProxy(apiKey, proxyID string) error {
 
 // TestProxy 测试代理
 // 使用代理访问 i.pn 获取出口 IP
-func (c *SXProxyClient) TestProxy(host string, port int, username, password string) (string, error) {
+func (c *SXXProxyClient) TestProxy(host string, port int, username, password string) (string, error) {
 	if host == "" {
 		return "", fmt.Errorf("代理主机不能为空")
 	}
@@ -479,7 +479,7 @@ func (c *SXProxyClient) TestProxy(host string, port int, username, password stri
 	testURL := "https://i.pn"
 	req, err := http.NewRequest("GET", testURL, nil)
 	if err != nil {
-		log.F("[SXProxyClient] TestProxy create request error: %v", err)
+		log.F("[SXXProxyClient] TestProxy create request error: %v", err)
 		return "", fmt.Errorf("创建请求失败: %v", err)
 	}
 
@@ -490,7 +490,7 @@ func (c *SXProxyClient) TestProxy(host string, port int, username, password stri
 	// 发送请求
 	resp, err := proxyClient.Do(req)
 	if err != nil {
-		log.F("[SXProxyClient] TestProxy request error: %v", err)
+		log.F("[SXXProxyClient] TestProxy request error: %v", err)
 		return "", fmt.Errorf("代理测试失败: %v", err)
 	}
 	defer resp.Body.Close()
@@ -498,7 +498,7 @@ func (c *SXProxyClient) TestProxy(host string, port int, username, password stri
 	// 读取响应
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.F("[SXProxyClient] TestProxy read response error: %v", err)
+		log.F("[SXXProxyClient] TestProxy read response error: %v", err)
 		return "", fmt.Errorf("读取响应失败: %v", err)
 	}
 
@@ -506,12 +506,12 @@ func (c *SXProxyClient) TestProxy(host string, port int, username, password stri
 	ansiRegex := regexp.MustCompile(`\x1B\[[0-9;]*m`)
 	cleanedBody := ansiRegex.ReplaceAllString(string(body), "")
 
-	log.F("[SXProxyClient] TestProxy response: %s", cleanedBody)
+	log.F("[SXXProxyClient] TestProxy response: %s", cleanedBody)
 
 	// 解析 JSON 响应
 	var result IPCheckResponse
 	if err := json.Unmarshal([]byte(cleanedBody), &result); err != nil {
-		log.F("[SXProxyClient] TestProxy JSON parse error: %v", err)
+		log.F("[SXXProxyClient] TestProxy JSON parse error: %v", err)
 		return "", fmt.Errorf("JSON解析失败: %v", err)
 	}
 
@@ -530,7 +530,7 @@ func (c *SXProxyClient) TestProxy(host string, port int, username, password stri
 
 // GetPlanInfo 获取计划信息
 // GET /v2/plan/info?apiKey={apiKey}
-func (c *SXProxyClient) GetPlanInfo(apiKey string) (*PlanInfoResponse, error) {
+func (c *SXXProxyClient) GetPlanInfo(apiKey string) (*PlanInfoResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API Key不能为空")
 	}
@@ -540,20 +540,51 @@ func (c *SXProxyClient) GetPlanInfo(apiKey string) (*PlanInfoResponse, error) {
 
 	body, err := c.doGet("/v2/plan/info", params)
 	if err != nil {
-		log.F("[SXProxyClient] GetPlanInfo error: %v", err)
+		log.F("[SXXProxyClient] GetPlanInfo error: %v", err)
 		return nil, err
 	}
 
-	log.F("[SXProxyClient] GetPlanInfo response: %s", string(body))
+	log.F("[SXXProxyClient] GetPlanInfo response: %s", string(body))
 
 	var result PlanInfoResponse
 	if err := parseResponse(body, &result); err != nil {
-		log.F("[SXProxyClient] GetPlanInfo parse error: %v", err)
+		log.F("[SXXProxyClient] GetPlanInfo parse error: %v", err)
 		return nil, err
 	}
 
 	if !result.Success {
 		return nil, fmt.Errorf("获取计划信息失败")
+	}
+
+	return &result, nil
+}
+
+// GetTotalSpentTraffic 获取总消耗流量
+// GET /v2/proxy/total-spent-traffic?apiKey={apiKey}
+func (c *SXXProxyClient) GetTotalSpentTraffic(apiKey string) (*TotalSpentTrafficResponse, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("API Key不能为空")
+	}
+
+	params := url.Values{}
+	params.Set("apiKey", apiKey)
+
+	body, err := c.doGet("/v2/proxy/total-spent-traffic", params)
+	if err != nil {
+		log.F("[SXXProxyClient] GetTotalSpentTraffic error: %v", err)
+		return nil, err
+	}
+
+	log.F("[SXXProxyClient] GetTotalSpentTraffic response: %s", string(body))
+
+	var result TotalSpentTrafficResponse
+	if err := parseResponse(body, &result); err != nil {
+		log.F("[SXXProxyClient] GetTotalSpentTraffic parse error: %v", err)
+		return nil, err
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("获取总消耗流量失败")
 	}
 
 	return &result, nil
