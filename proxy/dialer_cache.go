@@ -88,9 +88,10 @@ func (c *dialerLRUCache) Size() int {
 // GetSharedDirectDialer 获取共享的 Direct dialer（只创建一次）
 func GetSharedDirectDialer() (Dialer, error) {
 	sharedDirectOnce.Do(func() {
-		sharedDirectDialer, sharedDirectError = NewDirect("", 3*time.Second, 3*time.Second)
+		// dialTimeout=3s, relayTimeout=0（无超时，与 glider 默认配置一致）
+		sharedDirectDialer, sharedDirectError = NewDirect("", 3*time.Second, 0)
 		if sharedDirectError == nil {
-			log.F("[dialer-cache] shared direct dialer initialized")
+			log.F("[dialer-cache] shared direct dialer initialized (dialTimeout=3s, relayTimeout=0)")
 		}
 	})
 	return sharedDirectDialer, sharedDirectError
