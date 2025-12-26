@@ -1,15 +1,89 @@
 package http
 
 import (
+	"container/list"
 	"encoding/base64"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/nadoo/glider/pkg/log"
 	"github.com/nadoo/glider/pkg/pool"
 	"github.com/nadoo/glider/proxy"
 )
+
+// ========== LRU Dialer 缓存 ==========
+
+type dialerCacheEntry struct {
+	key     string
+	dialer  proxy.Dialer
+	element *list.Element
+}
+
+type dialerLRUCache struct {
+	mu       sync.Mutex
+	capacity int
+	cache    map[string]*dialerCacheEntry
+	order    *list.List // front = 最近使用, back = 最久未使用
+}
+
+// 全局缓存和共享的 defaultDialer
+var (
+	dialerCache       = newDialerLRUCache(1000) // 最多缓存 1000 个 Dialer
+	sharedDialer      proxy.Dialer
+	sharedDialerOnce  sync.Once
+	sharedDialerError error
+)
+
+func newDialerLRUCache(capacity int) *dialerLRUCache {
+	return &dialerLRUCache{
+		capacity: capacity,
+		cache:    make(map[string]*dialerCacheEntry),
+		order:    list.New(),
+	}
+}
+
+func (c *dialerLRUCache) get(key string) (proxy.Dialer, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if entry, ok := c.cache[key]; ok {
+		// 移到最前面（最近使用）
+		c.order.MoveToFront(entry.element)
+		return entry.dialer, true
+	}
+	return nil, false
+}
+
+func (c *dialerLRUCache) set(key string, dialer proxy.Dialer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// 如果已存在，更新并移到最前
+	if entry, ok := c.cache[key]; ok {
+		entry.dialer = dialer
+		c.order.MoveToFront(entry.element)
+		return
+	}
+
+	// 如果满了，删除最久未使用的
+	if c.order.Len() >= c.capacity {
+		oldest := c.order.Back()
+		if oldest != nil {
+			oldEntry := oldest.Value.(*dialerCacheEntry)
+			delete(c.cache, oldEntry.key)
+			c.order.Remove(oldest)
+		}
+	}
+
+	// 添加新条目
+	entry := &dialerCacheEntry{key: key, dialer: dialer}
+	entry.element = c.order.PushFront(entry)
+	c.cache[key] = entry
+}
+
+// ========== 动态代理逻辑 ==========
 
 // GetSxxAuthKey 由 main 包注入，用于获取 sxxKey（动态代理模式使用）
 var GetSxxAuthKey func() string
@@ -28,6 +102,43 @@ func isDynamicProxyMode(serverAddr, password string) bool {
 	return sxxKey != "" && password == sxxKey
 }
 
+// getSharedDialer 获取共享的 Direct dialer（只创建一次）
+func getSharedDialer() (proxy.Dialer, error) {
+	sharedDialerOnce.Do(func() {
+		sharedDialer, sharedDialerError = proxy.NewDirect("", 3*time.Second, 3*time.Second)
+		if sharedDialerError == nil {
+			log.F("[http-dynamic] shared default dialer initialized")
+		}
+	})
+	return sharedDialer, sharedDialerError
+}
+
+// getOrCreateDialer 从缓存获取或创建 Dialer
+func getOrCreateDialer(proxyURL string) (proxy.Dialer, error) {
+	// 先从缓存获取
+	if dialer, ok := dialerCache.get(proxyURL); ok {
+		return dialer, nil
+	}
+
+	// 获取共享的 defaultDialer
+	defaultDialer, err := getSharedDialer()
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建新的 Dialer
+	dialer, err := proxy.DialerFromURL(proxyURL, defaultDialer)
+	if err != nil {
+		return nil, err
+	}
+
+	// 存入缓存
+	dialerCache.set(proxyURL, dialer)
+	log.F("[http-dynamic] dialer cached: %s", proxyURL)
+
+	return dialer, nil
+}
+
 // servDynamic 处理动态代理请求
 // base64User 是 Base64 URL Safe 无填充编码的真实代理 URL
 func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
@@ -40,19 +151,11 @@ func (s *HTTP) servDynamic(req *request, c *proxy.Conn, base64User string) {
 	}
 	proxyURL := string(decoded)
 
-	// 创建默认的 Direct dialer 作为 fallback
-	defaultDialer, err := proxy.NewDirect("", 3*time.Second, 3*time.Second)
+	// 从缓存获取或创建 Dialer
+	dialer, err := getOrCreateDialer(proxyURL)
 	if err != nil {
 		io.WriteString(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
-		log.F("[http-dynamic] create default dialer error: %v", err)
-		return
-	}
-
-	// 创建动态 Dialer
-	dialer, err := proxy.DialerFromURL(proxyURL, defaultDialer)
-	if err != nil {
-		io.WriteString(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
-		log.F("[http-dynamic] create dialer error: %s <-> %s <-> %s, err=%v", c.RemoteAddr(), base64User, proxyURL, err)
+		log.F("[http-dynamic] get dialer error: %s <-> %s <-> %s, err=%v", c.RemoteAddr(), base64User, proxyURL, err)
 		return
 	}
 
@@ -111,4 +214,3 @@ func safeRecordTraffic(target string, upBytes, downBytes int64) {
 	}()
 	proxy.RecordTraffic(target, upBytes, downBytes)
 }
-
