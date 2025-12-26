@@ -55,25 +55,35 @@ func (s *HTTP) Dial(network, addr string) (net.Conn, error) {
 	tpr := textproto.NewReader(c.Reader())
 	line, err := tpr.ReadLine()
 	if err != nil {
-		return c, err
+		log.F("[http] read response from proxy %s failed: %v (target: %s)", s.addr, err, addr)
+		return nil, errors.New("[http] proxy " + s.addr + " read response failed: " + err.Error())
 	}
 
-	_, code, _, ok := parseStartLine(line)
+	_, code, msg, ok := parseStartLine(line)
 	if ok && code == "200" {
 		tpr.ReadMIMEHeader()
-		return c, err
+		return c, nil
 	}
+
+	// 记录详细错误信息
+	errMsg := "[http] proxy " + s.addr + " returned " + code
+	if msg != "" {
+		errMsg += " (" + msg + ")"
+	}
+	errMsg += " for target " + addr
 
 	switch code {
 	case "403":
-		log.F("[http] 'CONNECT' to ports other than 443 are not allowed by proxy %s", s.addr)
+		log.F("[http] proxy %s returned 403 Forbidden - possibly blocked or auth failed (target: %s)", s.addr, addr)
 	case "405":
-		log.F("[http] 'CONNECT' method not allowed by proxy %s", s.addr)
+		log.F("[http] proxy %s returned 405 - CONNECT method not allowed (target: %s)", s.addr, addr)
 	case "407":
-		log.F("[http] authencation needed by proxy %s", s.addr)
+		log.F("[http] proxy %s returned 407 - authentication required (target: %s)", s.addr, addr)
+	default:
+		log.F("[http] proxy %s returned %s %s (target: %s)", s.addr, code, msg, addr)
 	}
 
-	return nil, errors.New("[http] can not connect remote address: " + addr + ". error code: " + code)
+	return nil, errors.New(errMsg)
 }
 
 // DialUDP connects to the given address via the proxy.
