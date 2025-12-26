@@ -164,17 +164,10 @@ func (s *Socks5) serveDynamic(c net.Conn, target, base64User string) {
 	}
 	proxyURL := string(decoded)
 
-	// 创建默认的 Direct dialer 作为 fallback
-	defaultDialer, err := proxy.NewDirect("", 3*time.Second, 3*time.Second)
+	// 从共享缓存获取或创建 Dialer
+	dialer, err := proxy.GetOrCreateDialer(proxyURL)
 	if err != nil {
-		log.F("[socks5-dynamic] create default dialer error: %v", err)
-		return
-	}
-
-	// 创建动态 Dialer
-	dialer, err := proxy.DialerFromURL(proxyURL, defaultDialer)
-	if err != nil {
-		log.F("[socks5-dynamic] create dialer error: %s <-> %s <-> %s, err=%v", c.RemoteAddr(), base64User, proxyURL, err)
+		log.F("[socks5-dynamic] get dialer error: %s <-> %s <-> %s, err=%v", c.RemoteAddr(), base64User, proxyURL, err)
 		return
 	}
 
