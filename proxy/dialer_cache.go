@@ -103,6 +103,11 @@ func GetSharedDirectDialer() (Dialer, error) {
 func GetOrCreateDialer(proxyURL string) (Dialer, error) {
 	// 先从缓存获取
 	if dialer, ok := sharedDialerCache.get(proxyURL); ok {
+		displayURL := proxyURL
+		if len(displayURL) > 50 {
+			displayURL = displayURL[:50] + "..."
+		}
+		log.F("[dialer-cache] hit: %s", displayURL)
 		return dialer, nil
 	}
 
