@@ -15,13 +15,17 @@ import (
 var GetSxxAuthKey func() string
 
 // isDynamicProxyMode 检查是否为动态代理模式
-// 条件：端口为 10800 且密码等于 sxxkey
+// 条件：端口为 10800 (SX代理) 或 10799 (Heroku代理) 且密码等于 sxxkey
 func isDynamicProxyMode(serverAddr, password string) bool {
 	if GetSxxAuthKey == nil {
 		return false
 	}
 	_, port, err := net.SplitHostPort(serverAddr)
-	if err != nil || port != "10800" {
+	if err != nil {
+		return false
+	}
+	// 支持 10800 (SX代理) 和 10799 (Heroku代理)
+	if port != "10800" && port != "10799" {
 		return false
 	}
 	sxxKey := GetSxxAuthKey()

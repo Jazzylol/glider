@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"container/list"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,6 +99,7 @@ func GetSharedDirectDialer() (Dialer, error) {
 }
 
 // GetOrCreateDialer 从缓存获取或创建 Dialer（HTTP/SOCKS5 动态代理共用）
+// 支持协议链：逗号分隔的多个协议 URL，如 "wss://host:443/path,vmess://uuid@"
 func GetOrCreateDialer(proxyURL string) (Dialer, error) {
 	// 先从缓存获取
 	if dialer, ok := sharedDialerCache.get(proxyURL); ok {
@@ -110,10 +112,18 @@ func GetOrCreateDialer(proxyURL string) (Dialer, error) {
 		return nil, err
 	}
 
-	// 创建新的 Dialer
-	dialer, err := DialerFromURL(proxyURL, directDialer)
-	if err != nil {
-		return nil, err
+	// 支持协议链：按逗号分隔，依次嵌套创建 Dialer
+	// 例如：wss://host:443/path,vmess://uuid@ 会先创建 wss dialer，再在其上创建 vmess dialer
+	var dialer Dialer = directDialer
+	for _, url := range strings.Split(proxyURL, ",") {
+		url = strings.TrimSpace(url)
+		if url == "" {
+			continue
+		}
+		dialer, err = DialerFromURL(url, dialer)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// 存入缓存
